@@ -1,0 +1,46 @@
+{
+ "providers": [
+  {
+   "type": "space",
+   "advances": {
+    "\uf000": 1.0,
+    "\uf100": -1.0,
+    "\uf001": 2.0,
+    "\uf101": -2.0,
+    "\uf002": 4.0,
+    "\uf102": -4.0,
+    "\uf003": 8.0,
+    "\uf103": -8.0,
+    "\uf004": 16.0,
+    "\uf104": -16.0,
+    "\uf005": 32.0,
+    "\uf105": -32.0,
+    "\uf006": 64.0,
+    "\uf106": -64.0,
+    "\uf007": 128.0,
+    "\uf107": -128.0,
+    "\uf008": 256.0,
+    "\uf108": -256.0,
+    "\uf009": 512.0,
+    "\uf109": -512.0
+   }
+  },
+  {
+   "type": "reference",
+   "id": "minecraft:include/space"
+  },
+  {
+   "type": "reference",
+   "id": "minecraft:include/default"
+  },
+  {
+   "type": "bitmap",
+   "file": "intercom:font/banner_bg.png",
+   "height": 8,
+   "ascent": 7,
+   "chars": [
+    "\ue020"
+   ]
+  }
+ ]
+}

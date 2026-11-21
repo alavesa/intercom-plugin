@@ -1,0 +1,56 @@
+{
+ "providers": [
+  {
+   "type": "space",
+   "advances": {
+    "\uf000": 1.0,
+    "\uf100": -1.0,
+    "\uf001": 2.0,
+    "\uf101": -2.0,
+    "\uf002": 4.0,
+    "\uf102": -4.0,
+    "\uf003": 8.0,
+    "\uf103": -8.0,
+    "\uf004": 16.0,
+    "\uf104": -16.0,
+    "\uf005": 32.0,
+    "\uf105": -32.0,
+    "\uf006": 64.0,
+    "\uf106": -64.0,
+    "\uf007": 128.0,
+    "\uf107": -128.0,
+    "\uf008": 256.0,
+    "\uf108": -256.0,
+    "\uf009": 512.0,
+    "\uf109": -512.0
+   }
+  },
+  {
+   "type": "bitmap",
+   "file": "intercom:font/button_send.png",
+   "height": 18,
+   "ascent": 12,
+   "chars": [
+    "\ue001"
+   ]
+  },
+  {
+   "type": "bitmap",
+   "file": "intercom:font/button_cancel.png",
+   "height": 18,
+   "ascent": 12,
+   "chars": [
+    "\ue002"
+   ]
+  },
+  {
+   "type": "bitmap",
+   "file": "intercom:font/dialog_panel.png",
+   "height": 75,
+   "ascent": 11,
+   "chars": [
+    "\ue003"
+   ]
+  }
+ ]
+}

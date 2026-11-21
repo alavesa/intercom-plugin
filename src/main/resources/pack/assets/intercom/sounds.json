@@ -1,0 +1,29 @@
+{
+ "chime_open": {
+  "subtitle": "subtitles.intercom.chime_open",
+  "sounds": [
+   {
+    "name": "intercom:chime_open",
+    "stream": false
+   }
+  ]
+ },
+ "chime_close": {
+  "subtitle": "subtitles.intercom.chime_close",
+  "sounds": [
+   {
+    "name": "intercom:chime_close",
+    "stream": false
+   }
+  ]
+ },
+ "send_confirm": {
+  "subtitle": "subtitles.intercom.send_confirm",
+  "sounds": [
+   {
+    "name": "intercom:send_confirm",
+    "stream": false
+   }
+  ]
+ }
+}

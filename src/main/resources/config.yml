@@ -1,0 +1,154 @@
+# Intercom - announcement banner. Reload with /announce reload.
+# Settings marked [pack] are baked into the resource pack: changing them rebuilds the pack on reload and
+# players download it again.
+
+announcement:
+  # Longest message, in characters. Enforced by the dialog's text box AND again on the server.
+  max-characters: 120
+  # Most message lines on the banner (1-4). A message that needs more is refused with a clear message.
+  max-lines: 3
+  # Lines are wrapped by measured pixel width (banner.width - 2 x banner.padding-x), so text always fits
+  # the banner. This is an extra cap on characters per line; 0 = pixel width only.
+  max-chars-per-line: 48
+  # Seconds a player waits between two announcements. intercom.bypass.cooldown / intercom.admin skip it.
+  cooldown-seconds: 30
+  # Announcements waiting while one is on screen. Further ones are refused.
+  queue-size: 5
+  # Pause between two queued announcements, ticks (20 = 1 s).
+  gap-ticks: 10
+  # The line under the message. {name} = the sender's name.
+  show-sender: true
+  sender-format: "- {name}"
+  # Also write every announcement into chat for everyone (a scroll-back copy). Players without the
+  # resource pack get the fallback below either way.
+  chat-copy: false
+
+timing:
+  # How the slide animation is driven:
+  #   client-clock   the banner carries the game tick at which the slide started and the player's client
+  #                  animates it against its own copy of the world clock: smooth at any frame rate.
+  #                  If a client's clock is off (heavy server lag), the banner jumps instead of sliding.
+  #   server-ticks   the server sends the slide position every tick: 20 steps a second, needs no clock.
+  driver: client-clock
+  # Slide in / slide out, ticks (2-40). [pack]
+  enter-ticks: 10
+  exit-ticks: 10
+  # How long the banner stays: base + per character of the message, capped at max. Ticks.
+  hold-base-ticks: 60
+  hold-ticks-per-character: 1.5
+  hold-max-ticks: 300
+
+# [pack] everything in this section
+banner:
+  # Width in GUI pixels (120-312; the smallest Minecraft GUI is 320 wide, so the banner always fits).
+  width: 280
+  # Gap between the top of the screen and the banner. 0 = hangs from the top edge.
+  top-offset: 0
+  # Space left and right of the text.
+  padding-x: 10
+  # 0 = invisible background, 1 = solid.
+  background-opacity: 0.88
+  text-color: "#FFFFFF"
+  sender-color: "#99A6B3"
+
+post-effect:
+  # A subtle dim + vignette over the world while a banner is on screen (faded in and out with it).
+  # Only for players who have the resource pack.
+  enabled: true
+  # Fade steps. The server switches effect level every tick or two while the banner slides. [pack]
+  levels: 6
+  # At full strength: darkening of the whole picture, extra darkening in the corners, colour removed (0-1). [pack]
+  dim: 0.22
+  vignette: 0.30
+  desaturate: 0.20
+
+sounds:
+  # key: a sound event (the pack's own are intercom:chime_open, intercom:chime_close, intercom:send_confirm);
+  # empty = no sound. category: master, music, record, weather, block, hostile, neutral, player, ambient, voice, ui
+  open:
+    key: "intercom:chime_open"
+    volume: 1.0
+    pitch: 1.0
+    category: master
+  close:
+    key: "intercom:chime_close"
+    volume: 0.8
+    pitch: 1.0
+    category: master
+  # Only the sender hears this one.
+  confirm:
+    key: "intercom:send_confirm"
+    volume: 0.8
+    pitch: 1.0
+    category: master
+  # For players WITHOUT the resource pack (they cannot hear the pack's sounds).
+  fallback-open:
+    key: "minecraft:block.note_block.chime"
+    volume: 1.0
+    pitch: 1.2
+    category: master
+
+fallback:
+  # What players without the resource pack get instead of the banner: chat, actionbar, both or none.
+  # (Other plugins that own the action bar will overwrite an action bar message.)
+  mode: chat
+
+dialog:
+  # Custom-textured dialog (panel behind the text box, textured Send / Cancel buttons) for players who have
+  # the resource pack. false = plain vanilla dialog for everyone.
+  fancy: true
+  # Height of the text box in pixels, and how many lines it lets the player type.
+  input-height: 48
+  input-max-lines: 4
+
+logging:
+  # Every announcement goes to the console...
+  console: true
+  # ...and to plugins/Intercom/announcements.log
+  file: true
+
+resourcepack:
+  # How players get the pack:
+  #   auto       same-port, or http when the Minecraft port cannot be used            (default)
+  #   same-port  served on the Minecraft port itself - nothing to open in a firewall.
+  #              Does not work behind a Velocity/Bungee proxy.
+  #   http       served by a small built-in web server on http.port (must be reachable by players)
+  #   url        you upload plugins/Intercom/Intercom-pack.zip yourself and set url (and sha1) below
+  #   none       you merged plugins/Intercom/resourcepack/ into your own server pack (server.properties
+  #              resource-pack=...); nothing is sent. A player counts as having the pack once their client
+  #              reports any server resource pack as loaded.
+  delivery: auto
+  # Host name or IP players reach this server by. Empty = the address each player typed to connect.
+  public-host: ""
+  http:
+    bind: "0.0.0.0"
+    port: 8078
+  # delivery url: public address of the uploaded zip...
+  url: ""
+  # ...and its SHA-1. Empty = the hash of the zip this plugin generated (see /announce status).
+  sha1: ""
+  # true = players who decline are disconnected by the client.
+  required: false
+  # Text on the pack prompt (MiniMessage). Empty = the client's default text.
+  prompt: "<gold>Intercom</gold> <gray>- announcement banner and sounds"
+  # Ticks after joining before the pack is sent. Later than other plugins' packs, so that this pack ends up
+  # on top (the top pack's text shader is the one that runs).
+  send-delay-ticks: 120
+  # Other plugins that replace the same text shader (minecraft:core/text). Minecraft runs only the top pack's
+  # copy, so the banner shader is built on top of the first of these zips that exists (paths relative to
+  # plugins/, most complete first) and keeps their HUDs working. With none of them: the vanilla shader.
+  text-shader-sources:
+    SCP079: SCP079/SCP079-pack.zip
+    IdCards: IdCards/idcards-pack.zip
+    Radio: Radio/radio-pack.zip
+    SuperbVehicles: SuperbVehicles/pack/SuperbVehicles-hud.zip
+    CCTV: CCTV/cctv-pack.zip
+  # Re-skin EVERY vanilla button (all menus of the game, not only this dialog) with the textures in
+  # pack-optional/global-buttons. Off by default: the dialog's own buttons are textured without it.
+  global-button-skin: false
+  # Written to pack.mcmeta. 26.3 is resource pack format 97; raise max when a newer client complains
+  # that the pack "was made for an older version".
+  format:
+    min: 97
+    max: 97
+  description: "Intercom"

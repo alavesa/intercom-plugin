@@ -1,0 +1,26 @@
+name: Intercom
+version: '${version}'
+main: fi.alavesa.intercom.IntercomPlugin
+api-version: '26.3'
+description: Announcement / intercom / PA system - a banner that slides down from the top of every player's screen
+author: Piia Alavesa
+load: POSTWORLD
+# Nothing is required. LuckPerms (or any permission plugin) is used through the normal Bukkit permission checks.
+# The others are listed so that their resource packs exist before this plugin merges the text shader on top.
+softdepend: [LuckPerms, SCP079, IdCards, Radio, SuperbVehicles, CCTV]
+
+# /announce (aliases /pa, /intercom) is registered in code through Paper's Brigadier API (see AnnounceCommand).
+
+permissions:
+  intercom.announce:
+    description: Open the announcement dialog and send announcements
+    default: op
+  intercom.bypass.cooldown:
+    description: Send announcements without waiting for the cooldown
+    default: op
+  intercom.admin:
+    description: /announce reload, clear, test, status and open; no cooldown
+    default: op
+    children:
+      intercom.announce: true
+      intercom.bypass.cooldown: true

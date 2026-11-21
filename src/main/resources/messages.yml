@@ -1,0 +1,34 @@
+# Every player-facing string, in MiniMessage format (https://docs.advntr.dev/minimessage/format.html).
+# Set a message to "" to not send it. <prefix> works everywhere.
+# The announcement text and player names are always inserted as plain text: tags typed by a player do nothing.
+
+prefix: "<gold>[Intercom]</gold> "
+
+no-permission: "<prefix><red>You are not allowed to make announcements."
+players-only: "<prefix><red>Only players can open the announcement dialog. Use <white>/announce test <text></white> from the console."
+player-not-found: "<prefix><red>No player named <white><name></white> is online."
+
+sent: "<prefix><green>Announcement sent."
+queued: "<prefix><green>Announcement queued <gray>(position <position>)."
+blank: "<prefix><red>Type a message first."
+too-long: "<prefix><red>That is <length> characters; the limit is <max>."
+does-not-fit: "<prefix><red>That message needs <lines> lines; the banner has room for <max>. Shorten it."
+cooldown: "<prefix><red>Wait <seconds> s before the next announcement."
+queue-full: "<prefix><red>Too many announcements are waiting. Try again in a moment."
+
+reloaded: "<prefix><green>Reloaded. <gray>Pack <sha1>, text shader: <shader>."
+cleared: "<prefix><green>Stopped the current announcement and removed <count> queued."
+
+# What players WITHOUT the resource pack see (fallback.mode) and the chat copy (announcement.chat-copy).
+chat-format: "<gold>[Intercom]</gold> <white><message></white> <gray>- <sender>"
+actionbar-format: "<gold><message></gold> <gray>- <sender>"
+
+dialog:
+  title: "Intercom"
+  # <max> = announcement.max-characters
+  # Keep it short: in the textured dialog it must fit one line of the panel (about 38 characters).
+  hint: "<gray>To everyone online - max <max> characters"
+  input-label: "Message"
+  send: "Send"
+  send-tooltip: "Broadcast this to every player"
+  cancel: "Cancel"
