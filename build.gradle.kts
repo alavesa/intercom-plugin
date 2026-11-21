@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "fi.alavesa"
-version = "1.0.0"
+version = "1.1.0"
 
 // Paper publishes the 26.x API as <mc>.build.<n>-<channel> (there is no -R0.1-SNAPSHOT any more).
 // Pinned to an exact stable build so the build is reproducible; bump the build number to move forward.
@@ -23,6 +23,9 @@ dependencies {
     // The server's own netty, compile-only: same-port pack delivery (pack/SamePortHttp) hooks the listening
     // channel of the Minecraft port. The jars in libs/ are the ones Paper 26.3 ships; nothing is bundled.
     compileOnly(fileTree("libs") { include("netty-*.jar") })
+
+    // Optional at run time: only integration/Prefixes touches it, and that class is loaded only when LuckPerms is installed.
+    compileOnly("net.luckperms:api:5.5")
 
     testImplementation(paperApi)
     testImplementation(platform("org.junit:junit-bom:5.11.4"))

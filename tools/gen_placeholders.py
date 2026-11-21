@@ -109,6 +109,44 @@ def mix(parts, total_seconds):
     return buf
 
 
+def corrupt(samples):
+    """The chime as a damaged machine would play it: sample-and-hold (bit-crush), stutters, drop-outs and static."""
+    import random
+    rnd = random.Random(79)
+    out = list(samples)
+    # sample-and-hold with a wandering hold length, coarse levels
+    i = 0
+    while i < len(out):
+        hold = rnd.choice((3, 5, 8, 13))
+        v = round(out[i] * 10) / 10
+        for k in range(i, min(len(out), i + hold)):
+            out[k] = v
+        i += hold
+    # stutter: short pieces repeated; drop-outs: short silences
+    for _ in range(7):
+        start = rnd.randrange(0, len(out) - 9000)
+        piece = out[start:start + rnd.randrange(600, 1800)]
+        for rep in range(1, rnd.randrange(2, 5)):
+            o = start + rep * len(piece)
+            n = max(0, min(len(piece), len(out) - o))
+            out[o:o + n] = piece[:n]
+    for _ in range(5):
+        start = rnd.randrange(2000, len(out) - 3000)
+        for k in range(start, start + rnd.randrange(500, 2200)):
+            out[k] = 0.0
+    # static bursts and a low hum under everything
+    for _ in range(6):
+        start = rnd.randrange(0, len(out) - 3000)
+        for k in range(start, start + rnd.randrange(400, 2500)):
+            out[k] += rnd.uniform(-0.22, 0.22)
+    for k in range(len(out)):
+        out[k] = max(-0.9, min(0.9, out[k] * 1.3 + 0.05 * math.sin(2 * math.pi * 55 * k / RATE)))
+    fade = int(RATE * 0.03)
+    for k in range(fade):
+        out[-1 - k] *= k / fade
+    return out
+
+
 def encode(samples, path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
@@ -131,6 +169,8 @@ def sounds():
     encode(mix([(0.0, bell(e5, 0.9)), (0.28, bell(a5, 1.1))], 1.4), os.path.join(d, "chime_open.ogg"))
     encode(mix([(0.0, bell(a5, 0.7, 0.4)), (0.22, bell(e5, 0.9, 0.4))], 1.15), os.path.join(d, "chime_close.ogg"))
     encode(mix([(0.0, bell(1318.5, 0.25, 0.35))], 0.3), os.path.join(d, "send_confirm.ogg"))
+    encode(corrupt(mix([(0.0, bell(e5 * 0.94, 0.9)), (0.26, bell(a5 * 1.07, 1.0)), (0.62, bell(e5 * 0.5, 1.0, 0.45))], 1.7)),
+           os.path.join(d, "chime_corrupt.ogg"))
 
 
 if __name__ == "__main__":

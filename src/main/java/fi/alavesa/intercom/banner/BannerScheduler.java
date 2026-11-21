@@ -77,10 +77,12 @@ public final class BannerScheduler {
         this.holdTicks = settings.timing().holdTicks(announcement.text().length());
 
         Messages messages = plugin.messages();
-        Component chat = messages.component("chat-format", Messages.text("message", announcement.text()), Messages.text("sender", announcement.senderName()));
-        actionBar = messages.component("actionbar-format", Messages.text("message", announcement.text()), Messages.text("sender", announcement.senderName()));
         Settings.Sounds sounds = settings.sounds();
-
+        Component chat = messages.component("chat-format", Messages.tag("message", announcement.chat()), Messages.tag("sender", announcement.chatSender()));
+        actionBar = messages.component("actionbar-format", Messages.tag("message", announcement.chat()), Messages.tag("sender", announcement.chatSender()));
+        Settings.SoundSpec open = announcement.openSound() == null ? sounds.open() : new Settings.SoundSpec(announcement.openSound());
+        // players without the pack cannot hear a pack sound: they always get the vanilla one
+        Settings.SoundSpec fallbackOpen = sounds.fallbackOpen();
         for (Player player : Bukkit.getOnlinePlayers()) {
             boolean banner = plugin.delivery().bannerReady(player);
             if (banner) {
@@ -88,13 +90,13 @@ public final class BannerScheduler {
                 BossBar bar = BossBar.bossBar(name(player, BannerText.PHASE_ENTER, 0), 0f, BossBar.Color.BLUE, BossBar.Overlay.PROGRESS);
                 viewers.put(player.getUniqueId(), bar);
                 player.showBossBar(bar);
-                play(player, sounds.open());
+                play(player, open);
             } else {
                 if (settings.fallback().actionBar() && actionBar != null) {
                     actionBarViewers.add(player.getUniqueId());
                     player.sendActionBar(actionBar);
                 }
-                play(player, sounds.fallbackOpen());
+                play(player, fallbackOpen);
             }
             if (chat != null && (settings.announcement().chatCopy() || (!banner && settings.fallback().chat()))) player.sendMessage(chat);
         }

@@ -1,24 +1,32 @@
 # Intercom - announcement banner. Reload with /announce reload.
+# Do not change this number: it tells the plugin which layout this file has.
+config-version: 2
 # Settings marked [pack] are baked into the resource pack: changing them rebuilds the pack on reload and
 # players download it again.
 
 announcement:
   # Longest message, in characters. Enforced by the dialog's text box AND again on the server.
   max-characters: 120
-  # Most message lines on the banner (1-4). A message that needs more is refused with a clear message.
+  # Senders can format their text:
+  #   **bold**  *italic*  __underline__  ~~strike~~      "# " at the start of a line = a large line
+  #   &0-&9 &a-&f colours, &l bold, &o italic, &n underline, &m strike, &r reset.  \* or \& = the character itself
+  # Every line typed in the dialog is its own paragraph on the banner.
+  # Most lines on the banner (1-4). A message that needs more is refused with a clear message.
   max-lines: 3
   # Lines are wrapped by measured pixel width (banner.width - 2 x banner.padding-x), so text always fits
   # the banner. This is an extra cap on characters per line; 0 = pixel width only.
   max-chars-per-line: 48
-  # Seconds a player waits between two announcements. intercom.bypass.cooldown / intercom.admin skip it.
-  cooldown-seconds: 30
+  # Seconds a player waits between two announcements (command and microphone alike): one every 5 minutes.
+  # intercom.bypass.cooldown / intercom.admin skip it.
+  cooldown-seconds: 300
   # Announcements waiting while one is on screen. Further ones are refused.
   queue-size: 5
   # Pause between two queued announcements, ticks (20 = 1 s).
   gap-ticks: 10
-  # The line under the message. {name} = the sender's name.
+  # The line under the message. {prefix} = the sender's LuckPerms prefix with its colours (empty without
+  # LuckPerms or without a prefix), {name} = the sender's name. & colour codes work here.
   show-sender: true
-  sender-format: "- {name}"
+  sender-format: "&8- {prefix}&7{name}"
   # Also write every announcement into chat for everyone (a scroll-back copy). Players without the
   # resource pack get the fallback below either way.
   chat-copy: false
@@ -48,8 +56,6 @@ banner:
   padding-x: 10
   # 0 = invisible background, 1 = solid.
   background-opacity: 0.88
-  text-color: "#FFFFFF"
-  sender-color: "#99A6B3"
 
 post-effect:
   # A subtle dim + vignette over the world while a banner is on screen (faded in and out with it).
@@ -100,6 +106,17 @@ dialog:
   # Height of the text box in pixels, and how many lines it lets the player type.
   input-height: 48
   input-max-lines: 4
+
+microphone:
+  # A placeable microphone (/announce microphone gives the item). Right-clicking one opens the announcement
+  # dialog for anyone with intercom.microphone (everyone by default).
+  # Its look is plugins/Intercom/models/microphone.bbmodel: edit or replace that file (Blockbench), then
+  # /announce reload. The model is converted into the resource pack and shown with an item display.
+  enabled: true
+  # Size: 1.0 = 16 model pixels are one block.
+  scale: 1.0
+  # How far away it is drawn, as a multiple of the client's entity distance.
+  view-range: 1.0
 
 logging:
   # Every announcement goes to the console...

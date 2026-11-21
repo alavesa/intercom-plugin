@@ -25,5 +25,14 @@
     "stream": false
    }
   ]
+ },
+ "chime_corrupt": {
+  "subtitle": "subtitles.intercom.chime_corrupt",
+  "sounds": [
+   {
+    "name": "intercom:chime_corrupt",
+    "stream": false
+   }
+  ]
  }
 }

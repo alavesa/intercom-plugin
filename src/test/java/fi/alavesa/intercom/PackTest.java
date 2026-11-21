@@ -1,6 +1,8 @@
 package fi.alavesa.intercom;
 
+import fi.alavesa.intercom.bbmodel.ModelException;
 import fi.alavesa.intercom.config.Settings;
+import fi.alavesa.intercom.microphone.MicrophoneModel;
 import fi.alavesa.intercom.pack.Bundle;
 import fi.alavesa.intercom.pack.DeterministicZip;
 import fi.alavesa.intercom.pack.PackAssets;
@@ -26,7 +28,11 @@ class PackTest {
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(RESOURCES.resolve("config.yml").toFile());
         for (int i = 0; i < overrides.length; i += 2) yaml.set(overrides[i], overrides[i + 1].equals("true") ? Boolean.TRUE : overrides[i + 1]);
         Map<String, byte[]> bundle = Bundle.fromDirectory(RESOURCES);
-        return PackAssets.collect(bundle, null, null, Settings.read(yaml, Logger.getLogger("test")));
+        try {
+            return PackAssets.collect(bundle, null, null, Settings.read(yaml, Logger.getLogger("test")), MicrophoneModel.load(null).packFiles());
+        } catch (ModelException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private static String text(PackAssets.Pack pack, String path) {
@@ -51,7 +57,8 @@ class PackTest {
         PackAssets.Pack pack = build();
         for (String path : new String[] {
             "pack.mcmeta", "assets/intercom/font/banner.json", "assets/intercom/font/ui.json", "assets/intercom/sounds.json",
-            "assets/intercom/sounds/chime_open.ogg", "assets/intercom/sounds/chime_close.ogg", "assets/intercom/sounds/send_confirm.ogg",
+            "assets/intercom/sounds/chime_open.ogg", "assets/intercom/sounds/chime_corrupt.ogg", "assets/intercom/items/microphone.json",
+            "assets/intercom/models/item/microphone.json", "assets/intercom/textures/item/microphone/microphone.png", "assets/intercom/sounds/chime_close.ogg", "assets/intercom/sounds/send_confirm.ogg",
             "assets/intercom/shaders/post/dim.fsh", "assets/intercom/post_effect/dim_1.json", "assets/intercom/post_effect/dim_6.json",
             "assets/intercom/shaders/include/intercom_config.glsl", "assets/intercom/shaders/include/intercom_marker.glsl",
             "assets/minecraft/textures/gui/sprites/boss_bar/blue_background.png"}) {

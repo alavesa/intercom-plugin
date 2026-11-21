@@ -2,15 +2,23 @@ package fi.alavesa.intercom.announce;
 
 import fi.alavesa.intercom.IntercomPlugin;
 import fi.alavesa.intercom.banner.BannerScheduler;
+import fi.alavesa.intercom.banner.BannerText;
 import fi.alavesa.intercom.config.Settings;
 import fi.alavesa.intercom.text.FontWidths;
+import fi.alavesa.intercom.text.Line;
 import fi.alavesa.intercom.text.LineWrapper;
+import fi.alavesa.intercom.text.Markup;
 import fi.alavesa.intercom.text.Sanitizer;
 import net.kyori.adventure.sound.Sound;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TextComponent;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
@@ -27,6 +35,12 @@ public final class AnnouncementManager {
 
     public static final String PERMISSION_ANNOUNCE = "intercom.announce", PERMISSION_ADMIN = "intercom.admin",
         PERMISSION_BYPASS_COOLDOWN = "intercom.bypass.cooldown";
+
+    private static final NamedTextColor[] CHAT_COLORS = {
+        NamedTextColor.BLACK, NamedTextColor.DARK_BLUE, NamedTextColor.DARK_GREEN, NamedTextColor.DARK_AQUA,
+        NamedTextColor.DARK_RED, NamedTextColor.DARK_PURPLE, NamedTextColor.GOLD, NamedTextColor.GRAY,
+        NamedTextColor.DARK_GRAY, NamedTextColor.BLUE, NamedTextColor.GREEN, NamedTextColor.AQUA,
+        NamedTextColor.RED, NamedTextColor.LIGHT_PURPLE, NamedTextColor.YELLOW, NamedTextColor.WHITE};
 
     public enum Outcome { SENT, QUEUED, NO_PERMISSION, BLANK, TOO_LONG, DOES_NOT_FIT, COOLDOWN, QUEUE_FULL }
 
@@ -56,65 +70,138 @@ public final class AnnouncementManager {
         return sender.hasPermission(PERMISSION_ANNOUNCE) || sender.hasPermission(PERMISSION_ADMIN);
     }
 
+    /** 75 -> "1:15". */
+    public static String clock(int seconds) { return seconds / 60 + ":" + (seconds % 60 < 10 ? "0" : "") + seconds % 60; }
+
+    private boolean cooldownApplies(CommandSender sender) {
+        return sender instanceof Player && plugin.settings().announcement().cooldownSeconds() > 0
+            && !sender.hasPermission(PERMISSION_BYPASS_COOLDOWN) && !sender.hasPermission(PERMISSION_ADMIN);
+    }
+
+    /** Seconds this player still has to wait, 0 when they may announce now. */
+    public int cooldownLeft(Player player) {
+        if (!cooldownApplies(player)) return 0;
+        Long last = lastSent.get(player.getUniqueId());
+        if (last == null) return 0;
+        long leftNanos = plugin.settings().announcement().cooldownSeconds() * 1_000_000_000L - (System.nanoTime() - last);
+        return leftNanos <= 0 ? 0 : (int) Math.ceil(leftNanos / 1e9);
+    }
+
     /**
+     * An announcement by a player or the console.
+     *
      * @param raw          the text as it came from the client or the command line
      * @param skipCooldown /announce test: neither checks nor starts the cooldown
+     * @param atMicrophone the server knows the player is using a microphone, which stands in for intercom.announce
      */
-    public Result submit(CommandSender sender, String raw, boolean skipCooldown) {
+    public Result submit(CommandSender sender, String raw, boolean skipCooldown, boolean atMicrophone) {
+        if (!atMicrophone && !mayAnnounce(sender)) return new Result(Outcome.NO_PERMISSION, "", 0);
+        Player player = sender instanceof Player p ? p : null;
+        boolean cooldown = !skipCooldown && cooldownApplies(sender);
+        if (cooldown) {
+            int left = cooldownLeft(player);
+            if (left > 0) return new Result(Outcome.COOLDOWN, raw == null ? "" : raw, left);
+        }
+        String name = player != null ? player.getName() : "Console";
+        String prefix = player != null ? plugin.prefix(player) : "";
+        // § is how a prefix may spell its colour codes; in the banner format they are all &
+        String senderLine = plugin.settings().announcement().senderFormat()
+            .replace("{prefix}", prefix.replace('§', '&')).replace("{name}", name);
+        Result result = accept(player == null ? null : player.getUniqueId(), name, senderLine, raw, null);
+        if (result.accepted()) {
+            if (cooldown) lastSent.put(player.getUniqueId(), System.nanoTime());
+            Sound confirm = plugin.settings().sounds().confirm().sound();
+            // the pack's own sound is silent without the pack - which is fine for a confirmation
+            if (confirm != null && player != null) player.playSound(confirm, Sound.Emitter.self());
+        }
+        return result;
+    }
+
+    /**
+     * An announcement made by another plugin (see IntercomPlugin#announce): no permission, no cooldown.
+     *
+     * @param senderLine the line under the message, with {@code &} colour codes; empty = no sender line
+     * @param openSound  played instead of the configured chime; null = the configured one
+     */
+    public Result submitAs(String senderName, String senderLine, String raw, Sound openSound) {
+        return accept(null, senderName, senderLine, raw, openSound);
+    }
+
+    private Result accept(UUID senderId, String senderName, String senderFormat, String raw, Sound openSound) {
         Settings settings = plugin.settings();
         Settings.Announcement cfg = settings.announcement();
         FontWidths font = plugin.fontWidths();
+        int maxPx = settings.banner().textWidth();
 
-        if (!mayAnnounce(sender)) return new Result(Outcome.NO_PERMISSION, "", 0);
-
-        String text = Sanitizer.clean(raw, font);
-        if (text.isEmpty()) return new Result(Outcome.BLANK, "", 0);
-        int length = Sanitizer.length(text);
-        if (length > cfg.maxCharacters()) return new Result(Outcome.TOO_LONG, text, length);
-
-        List<String> lines = LineWrapper.wrap(font, text, settings.banner().textWidth(), cfg.maxCharsPerLine());
-        if (lines.size() > cfg.maxLines()) return new Result(Outcome.DOES_NOT_FIT, text, lines.size());
-
-        UUID senderId = sender instanceof Player player ? player.getUniqueId() : null;
-        boolean cooldownApplies = !skipCooldown && senderId != null && cfg.cooldownSeconds() > 0
-            && !sender.hasPermission(PERMISSION_BYPASS_COOLDOWN) && !sender.hasPermission(PERMISSION_ADMIN);
-        long now = System.nanoTime();
-        if (cooldownApplies) {
-            Long last = lastSent.get(senderId);
-            if (last != null) {
-                long leftNanos = cfg.cooldownSeconds() * 1_000_000_000L - (now - last);
-                if (leftNanos > 0) return new Result(Outcome.COOLDOWN, text, (int) Math.ceil(leftNanos / 1e9));
+        // every line the sender typed is its own paragraph ("# " makes one large); each is wrapped by itself
+        List<Line> lines = new ArrayList<>();
+        StringBuilder cleaned = new StringBuilder(), plain = new StringBuilder();
+        TextComponent.Builder chat = Component.text();
+        int length = 0;
+        // a typed "\n" also breaks the line: commands and other plugins have no other way to send two lines
+        for (String rawLine : (raw == null ? "" : raw).replace("\\n", "\n").split("\\R")) {
+            String text = Sanitizer.clean(rawLine, font);
+            if (text.isEmpty()) continue;
+            Line paragraph = Markup.parse(text, Line.WHITE);
+            if (paragraph.isBlank()) continue;
+            if (!cleaned.isEmpty()) {
+                cleaned.append('\n');
+                plain.append(' ');
+                chat.append(Component.space());
+                length++;
             }
+            cleaned.append(text);
+            plain.append(paragraph.plain());
+            chat.append(chatComponent(paragraph));
+            length += paragraph.length();
+            lines.addAll(LineWrapper.wrap(font, paragraph, maxPx, cfg.maxCharsPerLine()));
         }
+        if (lines.isEmpty()) return new Result(Outcome.BLANK, "", 0);
+        if (length > cfg.maxCharacters()) return new Result(Outcome.TOO_LONG, cleaned.toString(), length);
+
+        Line sender = null;
+        if (cfg.showSender() && !senderFormat.isBlank()) {
+            // the sender line goes through the same cleaning as the message: only banner-font characters reach the banner
+            Line parsed = Markup.parseLegacy(Sanitizer.clean(senderFormat, font), Line.GRAY);
+            if (!parsed.isBlank()) sender = LineWrapper.ellipsize(font, parsed, maxPx);
+        }
+        if (lines.size() > cfg.maxLines() || BannerText.height(lines, sender) > BannerText.MAX_HEIGHT) {
+            return new Result(Outcome.DOES_NOT_FIT, cleaned.toString(), lines.size());
+        }
+
         boolean wait = scheduler.busy() || !queue.isEmpty();
-        if (wait && queue.size() >= cfg.queueSize()) return new Result(Outcome.QUEUE_FULL, text, 0);
+        if (wait && queue.size() >= cfg.queueSize()) return new Result(Outcome.QUEUE_FULL, cleaned.toString(), 0);
 
-        String senderName = sender instanceof Player player ? player.getName() : "Console";
-        String senderLine = null;
-        if (cfg.showSender()) {
-            // the name goes through the same cleaning as the message: only banner-font characters reach the banner
-            String line = Sanitizer.clean(cfg.senderFormat().replace("{name}", senderName), font);
-            if (!line.isEmpty()) senderLine = LineWrapper.ellipsize(font, line, settings.banner().textWidth());
-        }
-        Announcement announcement = new Announcement(senderId, senderName, text, lines, senderLine);
+        Component chatSender = sender == null ? Component.text(senderName, NamedTextColor.GRAY) : chatComponent(sender);
+        Announcement announcement = new Announcement(senderId, senderName, plain.toString(), lines, sender, chat.build(), chatSender, openSound);
 
-        if (cooldownApplies) lastSent.put(senderId, now);
         if (settings.logging().console()) {
-            plugin.getLogger().info("Announcement by " + senderName + " (" + (senderId == null ? "console" : senderId) + "): " + text);
+            plugin.getLogger().info("Announcement by " + senderName + " (" + (senderId == null ? "server" : senderId) + "): " + announcement.text());
         }
         if (settings.logging().file()) log.append(announcement);
-        Sound confirm = settings.sounds().confirm().sound();
-        if (confirm != null && sender instanceof Player player) {
-            // the pack's own sound is silent without the pack - which is fine for a confirmation
-            player.playSound(confirm, Sound.Emitter.self());
-        }
 
         if (wait) {
             queue.add(announcement);
-            return new Result(Outcome.QUEUED, text, queue.size());
+            return new Result(Outcome.QUEUED, cleaned.toString(), queue.size());
         }
         scheduler.play(announcement, this::next);
-        return new Result(Outcome.SENT, text, 0);
+        return new Result(Outcome.SENT, cleaned.toString(), 0);
+    }
+
+    /** The same styled text for chat (fallback and chat copy). */
+    private static Component chatComponent(Line line) {
+        TextComponent.Builder out = Component.text();
+        for (int from = 0; from < line.length(); ) {
+            int to = line.runEnd(from);
+            int style = line.styles()[from];
+            out.append(Component.text(new String(line.codePoints(), from, to - from), CHAT_COLORS[style & Line.COLOR_MASK])
+                .decoration(TextDecoration.BOLD, (style & Line.BOLD) != 0 || line.large())
+                .decoration(TextDecoration.ITALIC, (style & Line.ITALIC) != 0)
+                .decoration(TextDecoration.UNDERLINED, (style & Line.UNDERLINE) != 0)
+                .decoration(TextDecoration.STRIKETHROUGH, (style & Line.STRIKE) != 0));
+            from = to;
+        }
+        return out.build();
     }
 
     private void next() {

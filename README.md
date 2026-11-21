@@ -4,9 +4,45 @@ Announcement / intercom / PA system for Paper **26.3**. `/announce` opens a dial
 down from the top of every player's screen as a black banner with the text and the sender's name, with a chime
 and a subtle screen dim, then slides back up.
 
-- Plugin: `build/libs/Intercom-1.0.0.jar` (Java 25, Paper API `26.3.build.257-stable`, nothing shaded)
+- Plugin: `build/libs/Intercom-1.1.0.jar` (Java 25, Paper API `26.3.build.257-stable`, nothing shaded)
 - Resource pack: built by the plugin at start-up and sent to players automatically. A stand-alone copy comes
   from `./gradlew packZip`.
+
+## Changes in 1.1.0
+
+- **LuckPerms prefix** before the sender's name on the banner (`announcement.sender-format`, default
+  `&8- {prefix}&7{name}`), in the prefix's own colours. Without LuckPerms the name stands alone.
+- **Formatting** in announcements, Discord style and Minecraft colour codes:
+
+  | Type | Result |
+  |---|---|
+  | `**bold**`, `*italic*` or `_italic_`, `__underline__`, `~~strike~~` | as in Discord |
+  | `# ` at the start of a line | a large line (double size) |
+  | `&0`-`&9`, `&a`-`&f` | colours; `&l` bold, `&o` italic, `&n` underline, `&m` strike, `&r` reset |
+  | `\*`, `\&`, ... | the character itself |
+
+  Each line typed in the dialog is its own paragraph. Players without the pack get the same colours and
+  styles in chat.
+- **Microphone.** A placeable microphone with a detailed model (talk button, status LED, gooseneck, mesh
+  capsule). Right-click it to make an announcement; it needs no `intercom.announce`, only
+  `intercom.microphone` (everyone by default). The model is `plugins/Intercom/models/microphone.bbmodel`:
+  open it in Blockbench, change or replace it, `/announce reload`. It is converted into the resource pack and
+  shown with an item display.
+- **One announcement every 5 minutes** per player (`announcement.cooldown-seconds: 300`), for the
+  command and the microphone alike. Clicking a microphone during the cooldown says how long is left.
+- **No "Announcement sent" message.** A sender sees only the banner and hears the chime, like everyone
+  else. Messages still appear when something is refused (too long, cooldown).
+- **Fixed: letters missing from all text.** In 1.0.0 the banner font *referenced* Minecraft's default font.
+  After a second resource reload in game (another plugin's pack arriving later, `/announce reload`), the
+  26.3 client then sometimes lost one character of the default font everywhere: chat, menus, signs
+  ("Yo r game mode", "[Server  ..."). On the test client: 4 of 6 such joins with 1.0.0, 0 of 6 with 1.1.0,
+  whose banner font has its own copy of the vanilla glyph providers. If players report a missing letter,
+  this update is the fix.
+- **For other plugins:** `/scp079 announce <text>` (SCP079 1.2.0) shows SCP-079 on the banner with
+  `intercom:chime_corrupt`, a glitched chime.
+
+Updating from 1.0.0: delete the old jar. The old `config.yml` is renamed `config-before-1.1.0.yml` and a new
+one written (the cooldown and the sender line changed); copy over what you had changed.
 
 ## What was verified, and how
 
@@ -18,7 +54,8 @@ and a subtle screen dim, then slides back up.
 | On a real 26.3 client: banner, wrapping, sender line, accented letters, slide in / out (both drivers), screen dim fading, textured dialog | yes, from screenshots |
 | On a real client together with SCP079 1.1.1 + IdCards 1.0.4 + Radio 0.2.4 (merged text shader, Intercom pack on top) | yes |
 | On a real client without the pack: chat + action bar fallback, no banner text, no dim | yes |
-| **Not verified**: clicking Send / Cancel and typing in the dialog, the sounds, more than one player, LuckPerms itself, the Vulkan backend on a real GPU, how smooth the slide looks | the test client cannot take input or play sound, and its screenshots are too slow to judge motion |
+| 1.1.0 on a real client: LuckPerms prefix in its colour, bold / italic / underline / strike / colours / large line, `\n` line breaks, the microphone model placed and in the hand, SCP079's announcement in green | yes |
+| **Not verified**: clicking a microphone, clicking Send / Cancel and typing in the dialog, the sounds (including the corrupted chime), more than one player, the Vulkan backend on a real GPU, how smooth the slide looks | the test client cannot take input or play sound, and its screenshots are too slow to judge motion |
 
 ## Install
 
@@ -34,7 +71,7 @@ These plugins also replace the text shader, and Minecraft runs only the top pack
 shader on top of theirs and must end up as the top pack. They need the version that knows this, or every join
 turns into a long series of pack reloads:
 
-- SCP079 **1.1.1**, IdCards **1.0.4**, Radio **0.2.4** (one line each: do not re-send your pack because Intercom's
+- SCP079 **1.1.1** or newer, IdCards **1.0.4**, Radio **0.2.4** (one line each: do not re-send your pack because Intercom's
   loaded after it).
 
 With those, a join was 5 pack reloads on the test client (one per plugin, plus one extra round when SCP079
@@ -50,8 +87,11 @@ re-sends its pack after IdCards' loads) and Intercom ends on top.
 | `/announce reload` | `intercom.admin` | re-read config and messages, rebuild the pack |
 | `/announce status` | `intercom.admin` | pack / shader / player read-out |
 | `/announce open <player>` | `intercom.admin` | put the dialog on a player's screen |
+| `/announce microphone` | `intercom.admin` | get the microphone item: right-click a block to place it, sneak + right-click a microphone to take it away |
+| `/announce microphone place` | `intercom.admin` | place one at your feet, facing you (works with `/execute positioned ... rotated ...`) |
+| right-click a microphone | `intercom.microphone` (default: everyone) | open the dialog |
 
-`intercom.bypass.cooldown` skips the cooldown. `intercom.admin` includes the other two. All default to op.
+`intercom.bypass.cooldown` skips the cooldown. `/announce test` also skips it, and `\n` in its text breaks the line. `intercom.admin` includes the other two. All default to op, except `intercom.microphone` (everyone).
 Permissions are plain Bukkit checks (`hasPermission`), so LuckPerms works with no hook. The permission is checked
 when the dialog opens **and** when it is submitted; the denial text is `no-permission` in `messages.yml`.
 
@@ -59,15 +99,16 @@ when the dialog opens **and** when it is submitted; the denial text is `no-permi
 
 `config.yml` is commented line by line. The parts that matter most:
 
-- `announcement.*`: max characters (120), max lines (3, up to 4), cooldown (30 s), queue size (5), sender line.
+- `announcement.*`: max characters (120), max lines (3, up to 4), cooldown (300 s), queue size (5), sender line.
 - `timing.*`: slide and hold times, and the animation `driver` (below).
 - `banner.*`, `post-effect.*`: look. These are **baked into the pack**; `/announce reload` rebuilds it and players
   download it again.
 - `fallback.mode`: what players without the pack get (`chat`, `actionbar`, `both`, `none`).
+- `microphone.*`: on/off, size, view range.
 - `resourcepack.*`: delivery.
 
 `messages.yml` holds every player-facing string in MiniMessage. The announcement text and names are always
-inserted as plain text.
+inserted as plain text: the formatting above is the only formatting a sender can use.
 
 ## Resource pack delivery
 
@@ -123,30 +164,37 @@ added (an include and a call per stage). The logic is in `assets/intercom/shader
 - `intercom_text_fragment.glsl`: colours
 - `intercom_config.glsl`: constants written from `config.yml`
 
-**Marker.** Banner glyphs are GUI text with colour red = 250. Green and blue carry 16 bits:
+**Marker.** Every character is drawn twice by Minecraft: the glyph and its shadow. A shadow colour has four
+bytes (its own alpha); a text colour three. So the data rides in the shadow, and the shadow is the copy that
+is drawn. The glyph itself gets the fixed colour `(249, 28, 10)` and is moved off screen.
 
 ```
-green  bits 7-6  phase: 0 HOLD, 1 ENTER, 2 EXIT, 3 STEP
-       bits 5-0  ENTER/EXIT: game tick (mod 64) the slide started; STEP: shown amount 0-63
-blue   bits 2-0  0-4 = text row from the top, 7 = background box
-       bit  3    this row is the sender line
-       bits 6-4  rows in the banner - 1
-       bit  7    the banner has a sender line
+shadow red    250                                     (marker)
+shadow alpha  bits 7-4  0xE                            (marker)
+              bits 3-0  colour: one of the 16 chat colours &0-&f
+       green  bits 7-6  phase: 0 HOLD, 1 ENTER, 2 EXIT, 3 STEP
+              bits 5-0  ENTER/EXIT: game tick (mod 64) the slide started; STEP: shown amount 0-63
+       blue   bit  7    1 = background box: bits 6-0 = banner height / 2
+                        0 = text:           bits 6-1 = the row's y in the banner / 2, bit 0 = large row
 ```
+
+Bold, italic, underline and strike are drawn by the client itself and need no bits.
 
 Only the `IS_GUI` variant of the shader contains the code, so signs, name tags, text displays and maps are
 compiled without it. Chat, titles and scoreboards go through the code but do not match the marker.
-Text with the exact colour `#FAxxxx` from another plugin could match; combinations the plugin never sends are
-rejected, which removes most of that space.
+Ordinary shadows are a quarter as bright as their text and fully opaque, so red 250 with alpha `0xE?` does not
+occur by itself.
 
 **Layout.** The font `intercom:banner` is Minecraft's default bitmap font plus cursor-moving spaces and one
 background glyph. `BannerText.java` writes every line starting at minus half its width and ends with the cursor
 back at 0, so the client's own centring puts the middle of every line at the screen centre. The shader keeps x,
-replaces y with the row, and stretches the background glyph over the banner. Widths come from
+replaces y with the row (a large row is doubled about the screen centre), and stretches the background glyph
+over the banner. Widths come from
 `font/default_widths.tsv`, generated from the 26.3 client jar (`tools/gen_widths.py`).
 
-**Text always fits.** The server wraps by measured pixel width (`banner.width - 2 x padding-x`), caps characters
-per line, and refuses a message that needs more than `max-lines`. Banner width is limited to 312 px; the
+**Text always fits.** The server wraps by measured pixel width (`banner.width - 2 x padding-x`, half that for a
+large line; bold counts a pixel per character), caps characters per line, and refuses a message that needs more
+than `max-lines`. Banner width is limited to 312 px; the
 smallest Minecraft GUI is 320 wide.
 
 **Animation.** Two drivers, `timing.driver`:
@@ -209,6 +257,13 @@ Put replacements in `plugins/Intercom/pack-overrides/` under the same path as in
 | `sounds/chime_open.ogg` | OGG Vorbis | banner starts descending. Event `intercom:chime_open` |
 | `sounds/chime_close.ogg` | OGG Vorbis | banner starts retracting. Event `intercom:chime_close` |
 | `sounds/send_confirm.ogg` | OGG Vorbis | sender only. Event `intercom:send_confirm` |
+| `sounds/chime_corrupt.ogg` | OGG Vorbis | SCP-079's announcements (SCP079's `intercom.sound`). Event `intercom:chime_corrupt` |
+
+**The microphone model** is not a pack file: it is `plugins/Intercom/models/microphone.bbmodel`, an ordinary
+Blockbench project (generic model, 16 px = 1 block, front = north, standing on y = 0). The plugin writes the
+starter model there on the first start and never overwrites it. Cubes, groups (nested, rotated), per-face UVs,
+several textures and animated textures are read; meshes and animations are skipped with a warning in the
+console. After `/announce reload` every placed microphone takes the new shape.
 
 Optional global buttons (`assets/minecraft/textures/gui/sprites/widget/`): `button.png`,
 `button_highlighted.png`, `button_disabled.png`, each 200 x 20 with a `.png.mcmeta` of
@@ -233,10 +288,16 @@ Regenerate the placeholders with `python3 tools/gen_placeholders.py`.
   Check edited shader files with `tools/validate_shaders.py` and glslang before shipping them.
 - **Banner jumps instead of sliding.** `timing.driver: server-ticks`.
 - **`?` in the banner.** The character is not in Minecraft's default bitmap font (emoji, CJK).
+- **One letter missing from all text (chat, menus).** Intercom 1.0.0; update. (Seen once without Intercom
+  too, with SCP079 + Radio + IdCards; cause not found.)
 - **Lines off-centre.** A pack replaced Minecraft's default font textures with different glyph widths.
 - **"Update did nothing".** An older Intercom jar is still in `plugins/`.
 
 ## Known limitations
+
+- An announcement shows the formatting of its text, not of the sender's chat plugin (no gradients, no hex
+  colours, no emoji): the banner has 16 colours.
+- A microphone shows as a missing-model cube to players without the pack.
 
 - Sodium, Iris, OptiFine and other mods that replace the renderer may ignore or break custom core shaders.
   Those players see marker-coloured text at the top of the screen. The plugin does not try to detect them; a
@@ -248,6 +309,9 @@ Regenerate the placeholders with `python3 tools/gen_placeholders.py`.
   non-API code. `http` and `url` avoid it.
 
 ## Assumptions and risks
+
+- **Shadow marker.** The banner relies on the client drawing a glyph's shadow with exactly the shadow colour the
+  server set (26.3 `Font.getShadowColor` reads it from the style; seen working on the test client).
 
 - **Game time source.** `client-clock` assumes the server's `World.getGameTime()` is what the client's
   `GameTime` follows. The 26.3 client bytecode shows the time packet setting it, and the slide ran correctly on

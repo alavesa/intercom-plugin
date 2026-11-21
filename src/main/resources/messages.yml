@@ -8,20 +8,27 @@ no-permission: "<prefix><red>You are not allowed to make announcements."
 players-only: "<prefix><red>Only players can open the announcement dialog. Use <white>/announce test <text></white> from the console."
 player-not-found: "<prefix><red>No player named <white><name></white> is online."
 
-sent: "<prefix><green>Announcement sent."
-queued: "<prefix><green>Announcement queued <gray>(position <position>)."
+# An accepted announcement says nothing to its sender: the banner and the chime are the confirmation.
 blank: "<prefix><red>Type a message first."
 too-long: "<prefix><red>That is <length> characters; the limit is <max>."
 does-not-fit: "<prefix><red>That message needs <lines> lines; the banner has room for <max>. Shorten it."
-cooldown: "<prefix><red>Wait <seconds> s before the next announcement."
+# <time> = minutes:seconds, <seconds> = the same in seconds
+cooldown: "<prefix><red>You can make another announcement in <time>."
 queue-full: "<prefix><red>Too many announcements are waiting. Try again in a moment."
 
 reloaded: "<prefix><green>Reloaded. <gray>Pack <sha1>, text shader: <shader>."
 cleared: "<prefix><green>Stopped the current announcement and removed <count> queued."
 
+microphone:
+  item-name: "<gold>Intercom Microphone"
+  given: "<prefix><gray>Right-click a block to place the microphone. Sneak + right-click a microphone to take it away."
+  placed: ""
+  removed: ""
+
 # What players WITHOUT the resource pack see (fallback.mode) and the chat copy (announcement.chat-copy).
-chat-format: "<gold>[Intercom]</gold> <white><message></white> <gray>- <sender>"
-actionbar-format: "<gold><message></gold> <gray>- <sender>"
+# <message> and <sender> come with the colours and styles of the announcement.
+chat-format: "<gold>[Intercom]</gold> <message> <sender>"
+actionbar-format: "<message> <sender>"
 
 dialog:
   title: "Intercom"

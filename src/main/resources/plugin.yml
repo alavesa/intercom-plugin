@@ -15,11 +15,14 @@ permissions:
   intercom.announce:
     description: Open the announcement dialog and send announcements
     default: op
+  intercom.microphone:
+    description: Make announcements at a placed microphone
+    default: true
   intercom.bypass.cooldown:
     description: Send announcements without waiting for the cooldown
     default: op
   intercom.admin:
-    description: /announce reload, clear, test, status and open; no cooldown
+    description: /announce reload, clear, test, status, open and microphone; place and remove microphones; no cooldown
     default: op
     children:
       intercom.announce: true

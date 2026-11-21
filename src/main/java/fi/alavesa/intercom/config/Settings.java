@@ -15,12 +15,14 @@ import java.util.logging.Logger;
  * plugin never sees a number that makes no sense. A bad value is replaced by a sane one and reported once.
  */
 public record Settings(Announcement announcement, Timing timing, Banner banner, PostEffect postEffect, Sounds sounds,
-                       FallbackMode fallback, DialogUi dialog, Logging logging, Pack pack) {
+                       FallbackMode fallback, DialogUi dialog, Microphone microphone, Logging logging, Pack pack) {
 
     public static final String NAMESPACE = "intercom";
 
-    /** The marker has three bits for the row and the banner one more row for the sender (see BannerText). */
+    /** Four double-size lines plus the sender line are the tallest banner the marker can describe (see BannerText). */
     public static final int MAX_LINES = 4;
+    /** config.yml of an older layout is set aside and written anew (see IntercomPlugin). */
+    public static final int CONFIG_VERSION = 2;
     /** The client-clock driver compares time modulo 64 ticks and treats 48+ as "not started" (shader). */
     public static final int MAX_SLIDE_TICKS = 40;
 
@@ -46,7 +48,7 @@ public record Settings(Announcement announcement, Timing timing, Banner banner, 
         }
     }
 
-    public record Banner(int width, int topOffset, int paddingX, double backgroundOpacity, int textRgb, int senderRgb) {
+    public record Banner(int width, int topOffset, int paddingX, double backgroundOpacity) {
 
         /** The widest a line of text may be, GUI pixels. */
         public int textWidth() { return width - 2 * paddingX; }
@@ -61,6 +63,8 @@ public record Settings(Announcement announcement, Timing timing, Banner banner, 
 
     public record DialogUi(boolean fancy, int inputHeight, int inputMaxLines) { }
 
+    public record Microphone(boolean enabled, double scale, double viewRange) { }
+
     public record Logging(boolean console, boolean file) { }
 
     /** @param shaderZips other plugins' pack zips whose text shader is merged, "name -> path relative to plugins/", most complete first */
@@ -73,11 +77,11 @@ public record Settings(Announcement announcement, Timing timing, Banner banner, 
             clamp(c.getInt("announcement.max-characters", 120), 1, 256),
             clamp(c.getInt("announcement.max-lines", 3), 1, MAX_LINES),
             Math.max(0, c.getInt("announcement.max-chars-per-line", 48)),
-            Math.max(0, c.getInt("announcement.cooldown-seconds", 30)),
+            Math.max(0, c.getInt("announcement.cooldown-seconds", 300)),
             Math.max(0, c.getInt("announcement.queue-size", 5)),
             Math.max(0, c.getInt("announcement.gap-ticks", 10)),
             c.getBoolean("announcement.show-sender", true),
-            c.getString("announcement.sender-format", "- {name}"),
+            c.getString("announcement.sender-format", "&8- {prefix}&7{name}"),
             c.getBoolean("announcement.chat-copy", false));
 
         Timing timing = new Timing(
@@ -94,9 +98,7 @@ public record Settings(Announcement announcement, Timing timing, Banner banner, 
             width,
             clamp(c.getInt("banner.top-offset", 0), 0, 64),
             clamp(c.getInt("banner.padding-x", 10), 2, 40),
-            clamp(c.getDouble("banner.background-opacity", 0.88), 0, 1),
-            color(c.getString("banner.text-color", "#FFFFFF"), 0xFFFFFF, "banner.text-color", log),
-            color(c.getString("banner.sender-color", "#99A6B3"), 0x99A6B3, "banner.sender-color", log));
+            clamp(c.getDouble("banner.background-opacity", 0.88), 0, 1));
 
         PostEffect postEffect = new PostEffect(
             c.getBoolean("post-effect.enabled", true),
@@ -114,6 +116,11 @@ public record Settings(Announcement announcement, Timing timing, Banner banner, 
             c.getBoolean("dialog.fancy", true),
             clamp(c.getInt("dialog.input-height", 48), 20, 200),
             clamp(c.getInt("dialog.input-max-lines", 4), 1, 16));
+
+        Microphone microphone = new Microphone(
+            c.getBoolean("microphone.enabled", true),
+            clamp(c.getDouble("microphone.scale", 1.0), 0.1, 8),
+            clamp(c.getDouble("microphone.view-range", 1.0), 0.05, 16));
 
         Logging logging = new Logging(c.getBoolean("logging.console", true), c.getBoolean("logging.file", true));
 
@@ -137,7 +144,7 @@ public record Settings(Announcement announcement, Timing timing, Banner banner, 
             shaderZips,
             c.getBoolean("resourcepack.global-button-skin", false));
 
-        return new Settings(announcement, timing, banner, postEffect, sounds, fallback, dialog, logging, pack);
+        return new Settings(announcement, timing, banner, postEffect, sounds, fallback, dialog, microphone, logging, pack);
     }
 
     private static int clamp(int value, int min, int max) { return Math.max(min, Math.min(max, value)); }
@@ -151,14 +158,6 @@ public record Settings(Announcement announcement, Timing timing, Banner banner, 
             log.warning(path + " '" + raw + "' is not a known value - using " + fallback.name().toLowerCase(Locale.ROOT).replace('_', '-'));
             return fallback;
         }
-    }
-
-    private static int color(String raw, int fallback, String path, Logger log) {
-        String hex = String.valueOf(raw).trim();
-        if (hex.startsWith("#")) hex = hex.substring(1);
-        if (hex.matches("[0-9a-fA-F]{6}")) return Integer.parseInt(hex, 16);
-        log.warning(path + " '" + raw + "' is not a colour like \"#FFFFFF\" - using the default");
-        return fallback;
     }
 
     @SuppressWarnings("PatternValidation") // the key is checked with Key.parseable first

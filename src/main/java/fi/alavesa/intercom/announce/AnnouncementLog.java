@@ -37,7 +37,7 @@ public final class AnnouncementLog {
     public void append(Announcement announcement) {
         String line = DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(ZonedDateTime.now().truncatedTo(ChronoUnit.SECONDS))
             + "\t" + announcement.senderName()
-            + "\t" + (announcement.senderId() == null ? "console" : announcement.senderId())
+            + "\t" + (announcement.senderId() == null ? "server" : announcement.senderId())
             + "\t" + announcement.text() + System.lineSeparator();
         try {
             writer.execute(() -> write(line));

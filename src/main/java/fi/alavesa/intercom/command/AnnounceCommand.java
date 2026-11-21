@@ -16,6 +16,7 @@ import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
@@ -55,6 +56,8 @@ public final class AnnounceCommand {
             .then(Commands.literal("status").requires(AnnounceCommand::admin).executes(this::status))
             .then(Commands.literal("test").requires(AnnounceCommand::admin)
                 .then(Commands.argument("text", StringArgumentType.greedyString()).executes(this::test)))
+            .then(Commands.literal("microphone").requires(AnnounceCommand::admin).executes(this::microphone)
+                .then(Commands.literal("place").executes(this::microphonePlace)))
             .then(Commands.literal("open").requires(AnnounceCommand::admin)
                 .then(Commands.argument("player", StringArgumentType.word()).suggests(this::suggestPlayers).executes(this::openFor)));
     }
@@ -90,9 +93,36 @@ public final class AnnounceCommand {
         return Command.SINGLE_SUCCESS;
     }
 
+    /** Gives the microphone item: right-click a block with it to place a microphone, sneak + right-click one to take it away. */
+    private int microphone(CommandContext<CommandSourceStack> context) {
+        CommandSender sender = context.getSource().getSender();
+        if (!(sender instanceof Player player)) {
+            plugin.messages().send(sender, "players-only");
+            return 0;
+        }
+        player.getInventory().addItem(plugin.microphones().createItem()).values().forEach(left -> player.getWorld().dropItem(player.getLocation(), left));
+        plugin.messages().send(player, "microphone.given");
+        return Command.SINGLE_SUCCESS;
+    }
+
+    /**
+     * Places a microphone at the command's position, on the block grid, its front turned towards where the
+     * command looks from - so "/announce microphone place" puts one at your feet, facing you, and
+     * "/execute positioned 10 64 10 rotated 90 0 run announce microphone place" does it from the console.
+     */
+    private int microphonePlace(CommandContext<CommandSourceStack> context) {
+        Location at = context.getSource().getLocation();
+        Location spot = new Location(at.getWorld(), at.getBlockX() + 0.5, at.getBlockY(), at.getBlockZ() + 0.5);
+        plugin.microphones().spawn(spot, Math.round((at.getYaw() + 180) / 45f) * 45f);
+        plugin.messages().send(context.getSource().getSender(), "microphone.placed");
+        return Command.SINGLE_SUCCESS;
+    }
+
     private int test(CommandContext<CommandSourceStack> context) {
         CommandSender sender = context.getSource().getSender();
-        AnnouncementManager.Result result = plugin.announcements().submit(sender, StringArgumentType.getString(context, "text"), true);
+        // "/execute as <player> run announce test ..." announces in that player's name (prefix and all)
+        CommandSender announcer = context.getSource().getExecutor() instanceof Player executor ? executor : sender;
+        AnnouncementManager.Result result = plugin.announcements().submit(announcer, StringArgumentType.getString(context, "text"), true, true);
         Feedback.send(sender, result, plugin.messages(), plugin.settings());
         return result.accepted() ? Command.SINGLE_SUCCESS : 0;
     }

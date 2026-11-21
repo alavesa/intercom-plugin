@@ -45,16 +45,21 @@ public final class ComposeDialog implements Listener {
     public ComposeDialog(IntercomPlugin plugin) { this.plugin = plugin; }
 
     /**
-     * Opens the dialog; tells the player why not when they lack the permission.
+     * Opens the dialog for a player with intercom.announce; tells the player why not when they lack it.
      *
      * @param draft text to start with (what they typed before a refused attempt), or ""
      */
     public void open(Player player, String draft) {
-        Messages messages = plugin.messages();
         if (!AnnouncementManager.mayAnnounce(player)) {
-            messages.send(player, "no-permission");
+            plugin.messages().send(player, "no-permission");
             return;
         }
+        show(player, draft);
+    }
+
+    /** Shows the dialog without asking who the player is - for callers that have checked (the microphone). */
+    public void show(Player player, String draft) {
+        Messages messages = plugin.messages();
         Settings settings = plugin.settings();
         int max = settings.announcement().maxCharacters();
         boolean fancy = settings.dialog().fancy() && plugin.delivery().packLoaded(player);
@@ -68,6 +73,7 @@ public final class ComposeDialog implements Listener {
         // the box refuses to take more than max characters; a draft is cut to that so the dialog always opens
         String initial = draft == null ? "" : draft;
         if (initial.codePointCount(0, initial.length()) > max) initial = initial.substring(0, initial.offsetByCodePoints(0, max));
+        // line breaks are kept as typed (each line is a paragraph of the banner)
         TextDialogInput input = DialogInput.text(INPUT_MESSAGE, orEmpty(messages.component("dialog.input-label")))
             .width(DialogSkin.INPUT_WIDTH)
             // in the textured dialog the panel is laid out for a box without a label line above it
@@ -108,11 +114,14 @@ public final class ComposeDialog implements Listener {
         DialogResponseView view = event.getDialogResponseView();
         String text = view == null ? null : view.getText(INPUT_MESSAGE);
 
-        AnnouncementManager.Result result = plugin.announcements().submit(player, text == null ? "" : text, false);
+        // a microphone lets a player announce without intercom.announce - when the SERVER saw them open it there
+        boolean atMicrophone = plugin.microphones().atMicrophone(player);
+        AnnouncementManager.Result result = plugin.announcements().submit(player, text == null ? "" : text, false, atMicrophone);
         Feedback.send(player, result, plugin.messages(), plugin.settings());
         switch (result.outcome()) {
             // something the player can fix by editing: give the dialog back with what they wrote
-            case BLANK, TOO_LONG, DOES_NOT_FIT -> open(player, result.cleaned());
+            case BLANK, TOO_LONG, DOES_NOT_FIT -> show(player, result.cleaned());
+            case SENT, QUEUED -> plugin.microphones().forget(player);
             default -> { }
         }
     }

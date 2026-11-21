@@ -1,5 +1,6 @@
 {
  "subtitles.intercom.chime_open": "Intercom chimes",
  "subtitles.intercom.chime_close": "Intercom clicks off",
- "subtitles.intercom.send_confirm": "Announcement sent"
+ "subtitles.intercom.send_confirm": "Announcement sent",
+ "subtitles.intercom.chime_corrupt": "Intercom crackles"
 }

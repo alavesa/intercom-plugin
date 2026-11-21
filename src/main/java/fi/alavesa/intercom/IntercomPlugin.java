@@ -6,16 +6,24 @@ import fi.alavesa.intercom.banner.BannerScheduler;
 import fi.alavesa.intercom.command.AnnounceCommand;
 import fi.alavesa.intercom.config.Messages;
 import fi.alavesa.intercom.config.Settings;
+import fi.alavesa.intercom.bbmodel.ModelException;
+import fi.alavesa.intercom.bbmodel.ModelGeometry;
 import fi.alavesa.intercom.dialog.ComposeDialog;
+import fi.alavesa.intercom.integration.Prefixes;
+import fi.alavesa.intercom.microphone.MicrophoneManager;
+import fi.alavesa.intercom.microphone.MicrophoneModel;
 import fi.alavesa.intercom.pack.Bundle;
 import fi.alavesa.intercom.pack.PackAssets;
 import fi.alavesa.intercom.pack.PackBuilder;
 import fi.alavesa.intercom.pack.PackDelivery;
 import fi.alavesa.intercom.text.FontWidths;
+import net.kyori.adventure.key.Key;
+import net.kyori.adventure.sound.Sound;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
@@ -27,6 +35,8 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.Map;
 
 /**
  * Intercom: {@code /announce} opens a dialog, and what is sent there slides down from the top of every
@@ -48,6 +58,11 @@ public final class IntercomPlugin extends JavaPlugin implements Listener {
     private AnnouncementManager announcements;
     private ComposeDialog dialog;
     private PackDelivery delivery;
+    private MicrophoneManager microphones;
+    /** null when LuckPerms is not installed. */
+    private Prefixes prefixes;
+    /** null when models/microphone.bbmodel could not be read. */
+    private ModelGeometry microphoneGeometry;
 
     private String packSha1 = "";
     private boolean bannerShader;
@@ -70,6 +85,14 @@ public final class IntercomPlugin extends JavaPlugin implements Listener {
         announcements = new AnnouncementManager(this, banners, announcementLog);
         dialog = new ComposeDialog(this);
         delivery = new PackDelivery(this);
+        microphones = new MicrophoneManager(this);
+        if (getServer().getPluginManager().getPlugin("LuckPerms") != null) {
+            try {
+                prefixes = new Prefixes();
+            } catch (RuntimeException | LinkageError e) {
+                getLogger().warning("LuckPerms is installed but its API could not be used (" + e + ") - announcements show names without prefixes");
+            }
+        }
 
         buildPack();
         delivery.apply();
@@ -77,6 +100,8 @@ public final class IntercomPlugin extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(this, this);
         getServer().getPluginManager().registerEvents(dialog, this);
         getServer().getPluginManager().registerEvents(delivery, this);
+        getServer().getPluginManager().registerEvents(microphones, this);
+        microphones.refreshAll();
         new AnnounceCommand(this).register();
 
         // Other plugins build their packs at start (some after us) and on their own reloads: when one of the
@@ -107,12 +132,28 @@ public final class IntercomPlugin extends JavaPlugin implements Listener {
         loadFiles();
         buildPack();
         delivery.apply();
+        microphones.refreshAll();
     }
 
     /** config.yml and messages.yml -> memory. */
     private void loadFiles() {
         saveDefaultConfig();
         reloadConfig();
+        if (getConfig().getInt("config-version", 1) < Settings.CONFIG_VERSION) {
+            // An older config.yml has other keys and other defaults (cooldown, sender line, colours). Mixing the two
+            // silently would keep the old behaviour, so the old file is set aside and the new one written.
+            File config = new File(getDataFolder(), "config.yml");
+            File backup = new File(getDataFolder(), "config-before-" + getPluginMeta().getVersion() + ".yml");
+            try {
+                Files.move(config.toPath(), backup.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                saveDefaultConfig();
+                reloadConfig();
+                getLogger().warning("config.yml was from an older version: it is now " + backup.getName() + " and a new config.yml with the new"
+                    + " defaults was written. Copy over any settings you had changed.");
+            } catch (IOException e) {
+                getLogger().warning("config.yml is from an older version and could not be replaced (" + e.getMessage() + ") - new settings use their defaults");
+            }
+        }
         settings = Settings.read(getConfig(), getLogger());
 
         File messagesFile = new File(getDataFolder(), "messages.yml");
@@ -153,8 +194,19 @@ public final class IntercomPlugin extends JavaPlugin implements Listener {
     private void buildPack() {
         File plugins = getDataFolder().getParentFile();
         sourceSignature = PackAssets.sourceSignature(plugins, settings.pack());
+        Map<String, byte[]> modelFiles = Map.of();
         try {
-            PackAssets.Pack pack = PackAssets.collect(Bundle.fromJar(getFile()), plugins, getDataFolder().toPath().resolve(OVERRIDES_DIR), settings);
+            MicrophoneModel model = MicrophoneModel.load(getDataFolder().toPath().resolve(MicrophoneModel.MODELS_DIR));
+            model.warnings().forEach(getLogger()::warning);
+            microphoneGeometry = model.geometry();
+            modelFiles = model.packFiles();
+        } catch (ModelException | IOException | RuntimeException e) {
+            // the microphones already placed keep their last shape; without a model in the pack they show as missing-model cubes
+            getLogger().warning("models/microphone.bbmodel could not be used: " + e.getMessage() + " - fix or delete the file and run /announce reload");
+            microphoneGeometry = null;
+        }
+        try {
+            PackAssets.Pack pack = PackAssets.collect(Bundle.fromJar(getFile()), plugins, getDataFolder().toPath().resolve(OVERRIDES_DIR), settings, modelFiles);
             pack.warnings().forEach(getLogger()::warning);
             PackBuilder.Written written = PackBuilder.write(getDataFolder().toPath(), pack.files());
             packSha1 = written.sha1();
@@ -172,6 +224,31 @@ public final class IntercomPlugin extends JavaPlugin implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         banners.forget(event.getPlayer());
         announcements.forget(event.getPlayer());
+        microphones.forget(event.getPlayer());
+    }
+
+    // ------------------------------------------------------------------ for other plugins
+
+    /**
+     * Makes an announcement in the name of something that is not a player - what other plugins call (SCP079
+     * does, by reflection, so neither plugin needs the other to compile or load). No permission, no cooldown;
+     * the text is cleaned, formatted, wrapped, queued and logged like any other. Server thread only.
+     *
+     * @param senderName name for the log and for chat, for example "SCP-079"
+     * @param senderLine the line under the message, {@code &} colour codes allowed; "" = no sender line
+     * @param text       the message; the formatting players can type works here too
+     * @param sound      sound event played when the banner appears, for example "intercom:chime_corrupt";
+     *                   null or "" = the configured chime
+     * @return true when the announcement is on screen or queued
+     */
+    @SuppressWarnings("PatternValidation") // checked with Key.parseable first
+    public boolean announce(String senderName, String senderLine, String text, String sound) {
+        Sound open = null;
+        if (sound != null && !sound.isBlank() && Key.parseable(sound)) {
+            Sound configured = settings.sounds().open().sound();
+            open = Sound.sound(Key.key(sound), configured == null ? Sound.Source.MASTER : configured.source(), configured == null ? 1f : configured.volume(), 1f);
+        }
+        return announcements.submitAs(senderName == null ? "?" : senderName, senderLine == null ? "" : senderLine, text, open).accepted();
     }
 
     public Settings settings() { return settings; }
@@ -187,6 +264,21 @@ public final class IntercomPlugin extends JavaPlugin implements Listener {
     public ComposeDialog dialog() { return dialog; }
 
     public PackDelivery delivery() { return delivery; }
+
+    public MicrophoneManager microphones() { return microphones; }
+
+    /** The flattened microphone model, or null when the model file could not be read. */
+    public ModelGeometry microphoneGeometry() { return microphoneGeometry; }
+
+    /** The player's LuckPerms prefix, with its colour codes; "" without LuckPerms or without a prefix. */
+    public String prefix(Player player) {
+        if (prefixes == null) return "";
+        try {
+            return prefixes.prefix(player);
+        } catch (RuntimeException e) {
+            return ""; // a prefix is decoration: never let it stop an announcement
+        }
+    }
 
     /** SHA-1 of the pack zip, or "" when it could not be built. */
     public String packSha1() { return packSha1; }

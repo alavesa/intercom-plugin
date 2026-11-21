@@ -34,6 +34,7 @@ import java.util.stream.Stream;
  *   assets/intercom/font/banner.json, ui.json             banner font; dialog textures as glyphs
  *   assets/intercom/textures/font/*.png                   placeholder textures
  *   assets/intercom/sounds.json, sounds/*.ogg             placeholder sounds
+ *   assets/intercom/items|models|textures/item/microphone the microphone, converted from models/microphone.bbmodel
  * </pre>
  */
 public final class PackAssets {
@@ -56,8 +57,9 @@ public final class PackAssets {
      * @param bundle        the pack sources shipped with the plugin (see {@link Bundle})
      * @param pluginsFolder where the other plugins' pack zips are looked up; null = merge with nobody
      * @param overrides     folder whose files replace or add pack files (same paths as in the pack); null = none
+     * @param modelFiles    the converted microphone model (see MicrophoneModel); empty when it could not be read
      */
-    public static Pack collect(Map<String, byte[]> bundle, File pluginsFolder, Path overrides, Settings settings) {
+    public static Pack collect(Map<String, byte[]> bundle, File pluginsFolder, Path overrides, Settings settings, Map<String, byte[]> modelFiles) {
         SortedMap<String, byte[]> files = new TreeMap<>();
         List<String> warnings = new ArrayList<>();
         for (Map.Entry<String, byte[]> file : bundle.entrySet()) {
@@ -66,6 +68,7 @@ public final class PackAssets {
                 files.put(file.getKey().substring(OPTIONAL_BUTTONS.length()), file.getValue());
             }
         }
+        files.putAll(modelFiles);
         files.put("pack.mcmeta", json(mcmeta(settings.pack())));
         files.put(CONFIG_GLSL, configGlsl(settings).getBytes(StandardCharsets.UTF_8));
         for (int level = 1; level <= settings.postEffect().levels(); level++) {
@@ -134,16 +137,10 @@ public final class PackAssets {
                 + "const float INTERCOM_WIDTH = %d.0;%n"
                 + "const float INTERCOM_TOP = %d.0;%n"
                 + "const float INTERCOM_BG_ALPHA = %.3f;%n"
-                + "const vec3  INTERCOM_TEXT_COLOR = %s;%n"
-                + "const vec3  INTERCOM_SENDER_COLOR = %s;%n"
                 + "const float INTERCOM_ENTER_TICKS = %d.0;%n"
                 + "const float INTERCOM_EXIT_TICKS = %d.0;%n",
-            b.width(), b.topOffset(), b.backgroundOpacity(), vec3(b.textRgb()), vec3(b.senderRgb()),
+            b.width(), b.topOffset(), b.backgroundOpacity(),
             settings.timing().enterTicks(), settings.timing().exitTicks());
-    }
-
-    private static String vec3(int rgb) {
-        return String.format(Locale.ROOT, "vec3(%.4f, %.4f, %.4f)", ((rgb >> 16) & 0xFF) / 255.0, ((rgb >> 8) & 0xFF) / 255.0, (rgb & 0xFF) / 255.0);
     }
 
     /**
