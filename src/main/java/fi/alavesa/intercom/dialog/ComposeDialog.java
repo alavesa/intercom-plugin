@@ -62,7 +62,8 @@ public final class ComposeDialog implements Listener {
         Messages messages = plugin.messages();
         Settings settings = plugin.settings();
         int max = settings.announcement().maxCharacters();
-        boolean fancy = settings.dialog().fancy() && plugin.delivery().packLoaded(player);
+        // shown to everyone, with or without the pack: there is no separate vanilla version of the dialog
+        boolean fancy = settings.dialog().fancy();
         DialogSkin skin = new DialogSkin(plugin.fontWidths());
 
         Component hint = orEmpty(messages.component("dialog.hint", Messages.text("max", max)));

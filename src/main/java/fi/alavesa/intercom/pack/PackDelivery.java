@@ -31,7 +31,8 @@ import java.util.logging.Logger;
 /**
  * Hosts and sends the generated pack as an ADDITIONAL server resource pack (replace = false), so the server's
  * own pack and other plugins' packs keep working - and keeps track of which players' clients have it
- * ({@link PlayerResourcePackStatusEvent}). That knowledge decides who gets the banner and who the fallback.
+ * ({@link PlayerResourcePackStatusEvent}). That knowledge is for the status read-out and for choosing a sound a
+ * client can play; it never decides who is shown the banner or the dialog - everybody is.
  * <p>
  * resourcepack.delivery:
  * <ul>
@@ -57,8 +58,6 @@ public final class PackDelivery implements Listener {
     private final Map<UUID, PlayerResourcePackStatusEvent.Status> status = new HashMap<>();
     private final Map<UUID, Integer> repushes = new HashMap<>();
     private final Set<UUID> sent = new HashSet<>();
-    /** Players for whom another pack ended up above ours for good: its text shader may not carry our lines. */
-    private final Set<UUID> buried = new HashSet<>();
     private final Map<UUID, Set<UUID>> pushedAfterOurs = new HashMap<>();
     /** delivery none: players whose client reported some server pack as loaded. */
     private final Set<UUID> anyPackLoaded = new HashSet<>();
@@ -144,12 +143,12 @@ public final class PackDelivery implements Listener {
     }
 
     /**
-     * Can this player see the banner? The pack must carry the banner shader, the client must have loaded the
-     * pack, and no other plugin's pack may have ended up above it for good (its text shader would run
-     * instead of ours).
+     * Is the banner sent to players? True whenever the pack carries the banner shader - whether or not a
+     * particular client has loaded the pack. A player without it sees placeholder boxes at the top of the
+     * screen instead of the drawn banner; that is wanted (no separate vanilla version of the UI).
      */
-    public boolean bannerReady(Player player) {
-        return plugin.bannerShaderShipped() && packLoaded(player) && !buried.contains(player.getUniqueId());
+    public boolean bannerReady() {
+        return plugin.bannerShaderShipped();
     }
 
     // ------------------------------------------------------------------ sending
@@ -174,7 +173,6 @@ public final class PackDelivery implements Listener {
         status.remove(id);
         sent.remove(id);
         repushes.remove(id);
-        buried.remove(id);
         pushedAfterOurs.remove(id);
         anyPackLoaded.remove(id);
     }
@@ -189,29 +187,23 @@ public final class PackDelivery implements Listener {
             // DISCARDED is about the copy an earlier push left behind (we push again to stay on top)
             if (st == PlayerResourcePackStatusEvent.Status.DISCARDED) return;
             status.put(id, st);
-            if (st == PlayerResourcePackStatusEvent.Status.SUCCESSFULLY_LOADED) buried.remove(id);
             if (st == PlayerResourcePackStatusEvent.Status.FAILED_DOWNLOAD || st == PlayerResourcePackStatusEvent.Status.FAILED_RELOAD
                 || st == PlayerResourcePackStatusEvent.Status.INVALID_URL) {
                 log.warning(player.getName() + " could not load the resource pack (" + st + ") from " + uri(player)
-                    + ". They get the fallback instead of the banner. If the address answers 404, another plugin is answering"
+                    + ". They see the banner and the dialog without their textures. If the address answers 404, another plugin is answering"
                     + " downloads on the Minecraft port; behind a proxy set resourcepack.delivery: http or url.");
             }
             return;
         }
         // Another pack was pushed after ours (ACCEPTED is the client's first answer to a push) and has now
         // loaded: it sits above ours, and if it carries a text shader without our lines, the banner does not
-        // work. Send ours again - capped, so two plugins doing the same cannot ping-pong for ever. Past the cap
-        // the player is marked as buried and gets the fallback.
+        // work. Send ours again - capped, so two plugins doing the same cannot ping-pong for ever.
         if (!plugin.bannerShaderShipped() || !sent.contains(id)) return;
         Set<UUID> newer = pushedAfterOurs.computeIfAbsent(id, k -> new HashSet<>());
         if (st == PlayerResourcePackStatusEvent.Status.ACCEPTED) {
             newer.add(event.getID());
         } else if (st == PlayerResourcePackStatusEvent.Status.SUCCESSFULLY_LOADED && newer.remove(event.getID())) {
-            if (repushes.merge(id, 1, Integer::sum) <= MAX_REPUSHES) {
-                Bukkit.getScheduler().runTaskLater(plugin, () -> send(player), 20L);
-            } else {
-                buried.add(id);
-            }
+            if (repushes.merge(id, 1, Integer::sum) <= MAX_REPUSHES) Bukkit.getScheduler().runTaskLater(plugin, () -> send(player), 20L);
         }
     }
 

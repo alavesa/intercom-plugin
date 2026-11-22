@@ -63,7 +63,8 @@ public record Settings(Announcement announcement, Timing timing, Banner banner, 
 
     public record DialogUi(boolean fancy, int inputHeight, int inputMaxLines) { }
 
-    public record Microphone(boolean enabled, double scale, double viewRange) { }
+    /** @param opOnly placing and removing needs operator status (true) or just intercom.admin (false) */
+    public record Microphone(boolean enabled, double scale, double viewRange, boolean opOnly) { }
 
     public record Logging(boolean console, boolean file) { }
 
@@ -120,7 +121,8 @@ public record Settings(Announcement announcement, Timing timing, Banner banner, 
         Microphone microphone = new Microphone(
             c.getBoolean("microphone.enabled", true),
             clamp(c.getDouble("microphone.scale", 1.0), 0.1, 8),
-            clamp(c.getDouble("microphone.view-range", 1.0), 0.05, 16));
+            clamp(c.getDouble("microphone.view-range", 1.0), 0.05, 16),
+            c.getBoolean("microphone.op-only", true));
 
         Logging logging = new Logging(c.getBoolean("logging.console", true), c.getBoolean("logging.file", true));
 

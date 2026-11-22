@@ -4,9 +4,21 @@ Announcement / intercom / PA system for Paper **26.3**. `/announce` opens a dial
 down from the top of every player's screen as a black banner with the text and the sender's name, with a chime
 and a subtle screen dim, then slides back up.
 
-- Plugin: `build/libs/Intercom-1.1.0.jar` (Java 25, Paper API `26.3.build.257-stable`, nothing shaded)
+- Plugin: `build/libs/Intercom-1.2.0.jar` (Java 25, Paper API `26.3.build.257-stable`, nothing shaded)
 - Resource pack: built by the plugin at start-up and sent to players automatically. A stand-alone copy comes
   from `./gradlew packZip`.
+
+## Changes in 1.2.0
+
+- **The banner and the textured dialog are sent to every player, with or without the resource pack.**
+  Before, only players whose client had reported the pack as loaded got them. What a client without the pack
+  draws is not the banner: it has neither the banner font nor the shader, so it shows the boss bar's name as
+  placeholder boxes at the top of the screen, and the dialog's panel and button art as boxes. Those players
+  therefore still get the announcement through `fallback.mode` as well (chat by default; `none` switches that off).
+  Not looked at on a client.
+- **Only server operators can place and remove microphones**, whatever permissions a player has
+  (`microphone.op-only: true`). This covers the item, sneak + right-click and `/announce microphone`. With
+  `false` it is `intercom.admin` as before. Using a microphone is unchanged (`intercom.microphone`).
 
 ## Changes in 1.1.0
 
@@ -87,8 +99,8 @@ re-sends its pack after IdCards' loads) and Intercom ends on top.
 | `/announce reload` | `intercom.admin` | re-read config and messages, rebuild the pack |
 | `/announce status` | `intercom.admin` | pack / shader / player read-out |
 | `/announce open <player>` | `intercom.admin` | put the dialog on a player's screen |
-| `/announce microphone` | `intercom.admin` | get the microphone item: right-click a block to place it, sneak + right-click a microphone to take it away |
-| `/announce microphone place` | `intercom.admin` | place one at your feet, facing you (works with `/execute positioned ... rotated ...`) |
+| `/announce microphone` | operator | get the microphone item: right-click a block to place it, sneak + right-click a microphone to take it away |
+| `/announce microphone place` | operator | place one at your feet, facing you (works with `/execute positioned ... rotated ...`) |
 | right-click a microphone | `intercom.microphone` (default: everyone) | open the dialog |
 
 `intercom.bypass.cooldown` skips the cooldown. `/announce test` also skips it, and `\n` in its text breaks the line. `intercom.admin` includes the other two. All default to op, except `intercom.microphone` (everyone).
@@ -103,7 +115,7 @@ when the dialog opens **and** when it is submitted; the denial text is `no-permi
 - `timing.*`: slide and hold times, and the animation `driver` (below).
 - `banner.*`, `post-effect.*`: look. These are **baked into the pack**; `/announce reload` rebuilds it and players
   download it again.
-- `fallback.mode`: what players without the pack get (`chat`, `actionbar`, `both`, `none`).
+- `fallback.mode`: what players without the pack get besides the banner (`chat`, `actionbar`, `both`, `none`).
 - `microphone.*`: on/off, size, view range.
 - `resourcepack.*`: delivery.
 
@@ -139,9 +151,9 @@ resource-pack-sha1=<the 40 hex characters>
 and set `resourcepack.delivery: none`. In that mode the plugin cannot ask about its own pack, so a player
 counts as having it once their client reports any server pack as loaded.
 
-**Who gets the banner.** The plugin listens to `PlayerResourcePackStatusEvent`. Only players whose client
-reported the pack as loaded are sent the banner. Everyone else gets the fallback and a vanilla chime, never the
-raw marker text.
+**Who gets the banner.** Everyone. The plugin still listens to `PlayerResourcePackStatusEvent`, but only to know
+who cannot draw it: a player whose client did not report the pack as loaded gets the banner's boss bar anyway
+(placeholder boxes at the top of the screen), plus the fallback and a vanilla chime.
 
 ## How it works
 
@@ -324,7 +336,7 @@ Regenerate the placeholders with `python3 tools/gen_placeholders.py`.
 - **Dialog details** (label not clipped over the button, panel behind the text box) are observed behaviour, not
   documented API.
 - **Pack order with other plugins** depends on timing; a player for whom another pack stays on top after three
-  re-sends gets the fallback.
+  re-sends may see the banner unmoved at the top of the screen.
 
 ## Build
 

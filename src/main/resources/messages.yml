@@ -21,6 +21,7 @@ cleared: "<prefix><green>Stopped the current announcement and removed <count> qu
 
 microphone:
   item-name: "<gold>Intercom Microphone"
+  no-build: "<prefix><red>Only server operators can place or remove microphones."
   given: "<prefix><gray>Right-click a block to place the microphone. Sneak + right-click a microphone to take it away."
   placed: ""
   removed: ""

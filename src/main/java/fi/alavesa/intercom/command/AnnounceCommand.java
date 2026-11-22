@@ -56,7 +56,7 @@ public final class AnnounceCommand {
             .then(Commands.literal("status").requires(AnnounceCommand::admin).executes(this::status))
             .then(Commands.literal("test").requires(AnnounceCommand::admin)
                 .then(Commands.argument("text", StringArgumentType.greedyString()).executes(this::test)))
-            .then(Commands.literal("microphone").requires(AnnounceCommand::admin).executes(this::microphone)
+            .then(Commands.literal("microphone").requires(this::builder).executes(this::microphone)
                 .then(Commands.literal("place").executes(this::microphonePlace)))
             .then(Commands.literal("open").requires(AnnounceCommand::admin)
                 .then(Commands.argument("player", StringArgumentType.word()).suggests(this::suggestPlayers).executes(this::openFor)));
@@ -94,6 +94,12 @@ public final class AnnounceCommand {
     }
 
     /** Gives the microphone item: right-click a block with it to place a microphone, sneak + right-click one to take it away. */
+    /** The console, and players who may place and remove microphones (operators, unless microphone.op-only is off). */
+    private boolean builder(CommandSourceStack source) {
+        if (!admin(source)) return false;
+        return !(source.getSender() instanceof Player player) || plugin.microphones().mayBuild(player);
+    }
+
     private int microphone(CommandContext<CommandSourceStack> context) {
         CommandSender sender = context.getSource().getSender();
         if (!(sender instanceof Player player)) {
@@ -145,11 +151,12 @@ public final class AnnounceCommand {
     private int status(CommandContext<CommandSourceStack> context) {
         CommandSender sender = context.getSource().getSender();
         int online = Bukkit.getOnlinePlayers().size(), ready = 0;
-        for (Player player : Bukkit.getOnlinePlayers()) if (plugin.delivery().bannerReady(player)) ready++;
+        for (Player player : Bukkit.getOnlinePlayers()) if (plugin.delivery().packLoaded(player)) ready++;
         line(sender, "Intercom " + plugin.getPluginMeta().getVersion());
         line(sender, "Pack: " + (plugin.packSha1().isEmpty() ? "NOT BUILT" : "sha1 " + plugin.packSha1()) + ", delivery " + plugin.delivery().delivery().name().toLowerCase(Locale.ROOT).replace('_', '-'));
         line(sender, "Text shader: " + plugin.shaderDescription());
-        line(sender, "Players who see the banner: " + ready + " of " + online + " (the rest get the fallback)");
+        line(sender, "Banner: " + (plugin.delivery().bannerReady() ? "shown to everyone" : "NOT available - everyone gets the fallback")
+            + "; pack loaded by " + ready + " of " + online + " online");
         line(sender, "Animation driver: " + plugin.settings().timing().driver().name().toLowerCase(Locale.ROOT).replace('_', '-')
             + ", queued: " + plugin.announcements().queued() + (plugin.banners().busy() ? ", one on screen" : ""));
         return Command.SINGLE_SUCCESS;

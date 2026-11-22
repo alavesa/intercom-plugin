@@ -21,10 +21,11 @@ import java.util.UUID;
 /**
  * Plays ONE announcement to everybody online: slide in, hold, slide out, a short gap, then {@code onDone}.
  * <p>
- * For a player whose client has the pack, the banner is a boss bar: its name is the whole banner
- * ({@link BannerText}), the pack's text shader moves it into place and animates it, and the pack blanks the
- * blue bar graphic. Everyone else gets the configured fallback (chat / action bar) - without the shader the
- * name would be coloured gibberish at the top of the screen, so those players are never sent the bar.
+ * The banner is a boss bar: its name is the whole banner ({@link BannerText}), the pack's text shader moves
+ * it into place and animates it, and the pack blanks the blue bar graphic. Every player is sent the bar,
+ * also those whose client did not load the pack. Without the pack's font and shader the name is drawn as
+ * placeholder boxes at the top of the screen, so those players get the configured fallback (chat / action
+ * bar) as well; so does everyone when the pack carries no banner shader at all.
  * <p>
  * Why a boss bar and not the action bar or a title: it is the only HUD text channel that several plugins can
  * use at once without overwriting each other (each bar is its own object), it stays exactly as long as the
@@ -81,24 +82,27 @@ public final class BannerScheduler {
         Component chat = messages.component("chat-format", Messages.tag("message", announcement.chat()), Messages.tag("sender", announcement.chatSender()));
         actionBar = messages.component("actionbar-format", Messages.tag("message", announcement.chat()), Messages.tag("sender", announcement.chatSender()));
         Settings.SoundSpec open = announcement.openSound() == null ? sounds.open() : new Settings.SoundSpec(announcement.openSound());
-        // players without the pack cannot hear a pack sound: they always get the vanilla one
         Settings.SoundSpec fallbackOpen = sounds.fallbackOpen();
+        boolean banner = plugin.delivery().bannerReady();
         for (Player player : Bukkit.getOnlinePlayers()) {
-            boolean banner = plugin.delivery().bannerReady(player);
             if (banner) {
                 // BLUE: the bar graphic the pack blanks (no vanilla mob has a blue bar). Progress 0: nothing to fill.
                 BossBar bar = BossBar.bossBar(name(player, BannerText.PHASE_ENTER, 0), 0f, BossBar.Color.BLUE, BossBar.Overlay.PROGRESS);
                 viewers.put(player.getUniqueId(), bar);
                 player.showBossBar(bar);
-                play(player, open);
-            } else {
+                // a client without the pack cannot play a pack sound: it gets the vanilla one
+                play(player, plugin.delivery().packLoaded(player) ? open : fallbackOpen);
+            }
+            // unreadable without the pack's font: these players need the words some other way too
+            boolean readable = banner && plugin.delivery().packLoaded(player);
+            if (!readable) {
                 if (settings.fallback().actionBar() && actionBar != null) {
                     actionBarViewers.add(player.getUniqueId());
                     player.sendActionBar(actionBar);
                 }
-                play(player, fallbackOpen);
+                if (!banner) play(player, fallbackOpen);
             }
-            if (chat != null && (settings.announcement().chatCopy() || (!banner && settings.fallback().chat()))) player.sendMessage(chat);
+            if (chat != null && (settings.announcement().chatCopy() || (!readable && settings.fallback().chat()))) player.sendMessage(chat);
         }
         if (task == null) task = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 1L, 1L);
     }

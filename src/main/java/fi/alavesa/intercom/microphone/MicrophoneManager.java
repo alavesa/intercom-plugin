@@ -105,8 +105,8 @@ public final class MicrophoneManager implements Listener {
         Player player = event.getPlayer();
         Block clicked = event.getClickedBlock();
         if (clicked == null) return;
-        if (!player.hasPermission(AnnouncementManager.PERMISSION_ADMIN)) {
-            plugin.messages().send(player, "no-permission");
+        if (!mayBuild(player)) {
+            plugin.messages().send(player, "microphone.no-build");
             return;
         }
         Block target = clicked.getRelative(event.getBlockFace());
@@ -225,7 +225,7 @@ public final class MicrophoneManager implements Listener {
         Player player = event.getPlayer();
         Messages messages = plugin.messages();
 
-        if (player.isSneaking() && player.hasPermission(AnnouncementManager.PERMISSION_ADMIN)) {
+        if (player.isSneaking() && mayBuild(player)) {
             // the display and the hitbox share one position
             for (Entity near : hitbox.getNearbyEntities(0.1, 0.1, 0.1)) if (near instanceof Display && isMicrophone(near)) near.remove();
             hitbox.remove();
@@ -247,6 +247,14 @@ public final class MicrophoneManager implements Listener {
         Location at = hitbox.getLocation();
         sessions.put(player.getUniqueId(), new Session(at.getWorld().getUID(), at.getX(), at.getY(), at.getZ(), System.currentTimeMillis()));
         plugin.dialog().show(player, "");
+    }
+
+    /**
+     * May this player place and remove microphones? Operators only by default (microphone.op-only): a
+     * permission plugin that hands out wildcard permissions must not turn ordinary players into builders.
+     */
+    public boolean mayBuild(Player player) {
+        return plugin.settings().microphone().opOnly() ? player.isOp() : player.hasPermission(AnnouncementManager.PERMISSION_ADMIN);
     }
 
     /**

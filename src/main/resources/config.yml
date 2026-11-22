@@ -27,8 +27,7 @@ announcement:
   # LuckPerms or without a prefix), {name} = the sender's name. & colour codes work here.
   show-sender: true
   sender-format: "&8- {prefix}&7{name}"
-  # Also write every announcement into chat for everyone (a scroll-back copy). Players without the
-  # resource pack get the fallback below either way.
+  # Also write every announcement into chat for everyone (a scroll-back copy).
   chat-copy: false
 
 timing:
@@ -87,7 +86,8 @@ sounds:
     volume: 0.8
     pitch: 1.0
     category: master
-  # For players WITHOUT the resource pack (they cannot hear the pack's sounds).
+  # Played instead of open for players whose client did not load the resource pack (it cannot play the
+  # pack's sounds).
   fallback-open:
     key: "minecraft:block.note_block.chime"
     volume: 1.0
@@ -95,13 +95,15 @@ sounds:
     category: master
 
 fallback:
-  # What players without the resource pack get instead of the banner: chat, actionbar, both or none.
+  # The banner and the dialog are sent to EVERY player, also those whose client did not load the resource
+  # pack. Without the pack's font and shader the banner is drawn as placeholder boxes at the top of the
+  # screen, so those players ALSO get the announcement this way: chat, actionbar, both or none.
   # (Other plugins that own the action bar will overwrite an action bar message.)
   mode: chat
 
 dialog:
-  # Custom-textured dialog (panel behind the text box, textured Send / Cancel buttons) for players who have
-  # the resource pack. false = plain vanilla dialog for everyone.
+  # Custom-textured dialog (panel behind the text box, textured Send / Cancel buttons), shown to everyone.
+  # false = plain vanilla dialog for everyone.
   fancy: true
   # Height of the text box in pixels, and how many lines it lets the player type.
   input-height: 48
@@ -117,6 +119,8 @@ microphone:
   scale: 1.0
   # How far away it is drawn, as a multiple of the client's entity distance.
   view-range: 1.0
+  # true = only server operators can place and remove microphones. false = anyone with intercom.admin.
+  op-only: true
 
 logging:
   # Every announcement goes to the console...
