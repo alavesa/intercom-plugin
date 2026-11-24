@@ -8,6 +8,29 @@ and a subtle screen dim, then slides back up.
 - Resource pack: built by the plugin at start-up and sent to players automatically. A stand-alone copy comes
   from `./gradlew packZip`.
 
+## Changes in 1.2.2
+
+- **Readable banner without the pack.** A player whose client has not loaded the Intercom pack (declined it,
+  or the download failed) used to get the banner as rows of red and white boxes. They now get the same text,
+  with its colours and bold/italic/underline, as plain boss bars at the top of the screen in Minecraft's own
+  font (the sender at the end of the last line). There is no box, slide or large text for them: those need
+  the pack. The compose dialog is likewise Minecraft's own for them (the textured one showed boxes).
+- **The drawn banner keeps its place on top.** Only the pack on top of a client's pack list runs its text
+  shader. Intercom sends its pack again when another plugin's pack loads above it; that limit (3) used to
+  be one total per player, so on a server with many packs it ran out and SCP079's pack could stay above
+  Intercom's: captions worked, the banner did not. The limit is now per other pack, and SCP079 1.2.3 no
+  longer competes with Intercom for the top place.
+- **Download check.** Shortly after start-up Intercom downloads its own pack through the Minecraft port, as
+  a client would, and logs `Pack download check: OK` or what went wrong (for example HTTP 404 = another
+  plugin answers downloads on the port). A player who declines the pack is logged too.
+- Seen on a real 26.3 client with SCP079, Radio, IdCards, CCTV, Lighting and Phone installed: the drawn
+  banner (heading, bold, colour, sender) at GUI scale 2 and 4 on a 1920 x 1080 window, SCP-079's green
+  announcement, and the plain banner after a failed download. Not seen: the plain dialog (no clicks on the
+  test client).
+- Note from that test: when one server pack fails to download, the 26.3 client also dropped most of the
+  other server packs it had loaded (SCP079's model and captions turned into missing-texture boxes too).
+  So if the banner AND other plugins' textures are broken for a player, look for a failed download first.
+
 ## Changes in 1.2.1
 
 - **No fallback.** Every player gets the banner and nothing else: `fallback.mode` is now `none` by default,

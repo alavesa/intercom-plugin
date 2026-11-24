@@ -62,8 +62,9 @@ public final class ComposeDialog implements Listener {
         Messages messages = plugin.messages();
         Settings settings = plugin.settings();
         int max = settings.announcement().maxCharacters();
-        // shown to everyone, with or without the pack: there is no separate vanilla version of the dialog
-        boolean fancy = settings.dialog().fancy();
+        // shown to everyone; without the pack the textured panel and buttons would be boxes, so those players get
+        // the same dialog drawn by Minecraft itself
+        boolean fancy = settings.dialog().fancy() && plugin.delivery().packLoaded(player);
         DialogSkin skin = new DialogSkin(plugin.fontWidths());
 
         Component hint = orEmpty(messages.component("dialog.hint", Messages.text("max", max)));

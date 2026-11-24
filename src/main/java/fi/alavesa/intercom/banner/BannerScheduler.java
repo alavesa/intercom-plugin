@@ -11,9 +11,11 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -22,10 +24,10 @@ import java.util.UUID;
  * Plays ONE announcement to everybody online: slide in, hold, slide out, a short gap, then {@code onDone}.
  * <p>
  * The banner is a boss bar: its name is the whole banner ({@link BannerText}), the pack's text shader moves
- * it into place and animates it, and the pack blanks the blue bar graphic. Every player is sent the bar,
- * also those whose client did not load the pack. Without the pack's font and shader the name is drawn as
- * placeholder boxes at the top of the screen, so those players get the configured fallback (chat / action
- * bar) as well; so does everyone when the pack carries no banner shader at all.
+ * it into place and animates it, and the pack blanks the blue bar graphic. A client that has not loaded the
+ * pack would draw that name as placeholder boxes, so those players - and everyone when the pack carries no
+ * banner shader - get {@link PlainBanner}: the same words as plain boss bars in Minecraft's own font. The
+ * optional fallback.mode (chat / action bar) comes on top of that.
  * <p>
  * Why a boss bar and not the action bar or a title: it is the only HUD text channel that several plugins can
  * use at once without overwriting each other (each bar is its own object), it stays exactly as long as the
@@ -54,6 +56,8 @@ public final class BannerScheduler {
     private int ticks, holdTicks;
     /** Players who see the banner -> their boss bar. */
     private final Map<UUID, BossBar> viewers = new HashMap<>();
+    /** Players without the pack -> their plain boss bars, one per line. */
+    private final Map<UUID, List<BossBar>> plainViewers = new HashMap<>();
     /** Players who get the action bar fallback. */
     private final Set<UUID> actionBarViewers = new HashSet<>();
     private Component actionBar;
@@ -84,26 +88,33 @@ public final class BannerScheduler {
         Settings.SoundSpec open = announcement.openSound() == null ? sounds.open() : new Settings.SoundSpec(announcement.openSound());
         Settings.SoundSpec fallbackOpen = sounds.fallbackOpen();
         boolean banner = plugin.delivery().bannerReady();
+        List<Component> plainRows = PlainBanner.rows(announcement.lines(), announcement.senderLine());
         for (Player player : Bukkit.getOnlinePlayers()) {
-            if (banner) {
+            // unreadable without the pack's font: these players get the plain bars instead
+            boolean readable = banner && plugin.delivery().packLoaded(player);
+            if (readable) {
                 // BLUE: the bar graphic the pack blanks (no vanilla mob has a blue bar). Progress 0: nothing to fill.
                 BossBar bar = BossBar.bossBar(name(player, BannerText.PHASE_ENTER, 0), 0f, BossBar.Color.BLUE, BossBar.Overlay.PROGRESS);
                 viewers.put(player.getUniqueId(), bar);
                 player.showBossBar(bar);
+                play(player, open);
+            } else {
+                // WHITE + empty: the least loud bar graphic under each line (a client without the pack draws it)
+                List<BossBar> bars = new ArrayList<>();
+                for (Component row : plainRows) {
+                    BossBar bar = BossBar.bossBar(row, 0f, BossBar.Color.WHITE, BossBar.Overlay.PROGRESS);
+                    bars.add(bar);
+                    player.showBossBar(bar);
+                }
+                plainViewers.put(player.getUniqueId(), bars);
                 // a client without the pack cannot play a pack sound: it gets the vanilla one
-                play(player, plugin.delivery().packLoaded(player) ? open : fallbackOpen);
-            }
-            // unreadable without the pack's font: these players need the words some other way too
-            boolean readable = banner && plugin.delivery().packLoaded(player);
-            if (!readable) {
+                play(player, fallbackOpen);
                 if (settings.fallback().actionBar() && actionBar != null) {
                     actionBarViewers.add(player.getUniqueId());
                     player.sendActionBar(actionBar);
                 }
-                if (!banner) play(player, fallbackOpen);
             }
-            // no banner at all (the pack could not be built): chat is the only way the announcement is heard
-            if (chat != null && (settings.announcement().chatCopy() || !banner || (!readable && settings.fallback().chat()))) player.sendMessage(chat);
+            if (chat != null && (settings.announcement().chatCopy() || (!readable && settings.fallback().chat()))) player.sendMessage(chat);
         }
         if (task == null) task = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 1L, 1L);
     }
@@ -117,6 +128,7 @@ public final class BannerScheduler {
             if (player != null) player.hideBossBar(viewer.getValue());
         }
         viewers.clear();
+        hidePlain();
         actionBarViewers.clear();
         dim.clearAll();
         current = null;
@@ -126,6 +138,7 @@ public final class BannerScheduler {
     /** A player left: their bar and dim are gone with the connection. */
     public void forget(Player player) {
         viewers.remove(player.getUniqueId());
+        plainViewers.remove(player.getUniqueId());
         actionBarViewers.remove(player.getUniqueId());
         dim.forget(player.getUniqueId());
     }
@@ -156,6 +169,7 @@ public final class BannerScheduler {
                         Player player = Bukkit.getPlayer(id);
                         if (player != null) play(player, settings.sounds().close());
                     }
+                    hidePlain(); // nothing to slide out
                 }
             }
             case EXIT -> {
@@ -168,6 +182,7 @@ public final class BannerScheduler {
                         if (player != null) player.hideBossBar(viewer.getValue());
                     }
                     viewers.clear();
+                    hidePlain();
                     actionBarViewers.clear();
                     dim.clearAll();
                     enter(Phase.GAP);
@@ -238,6 +253,14 @@ public final class BannerScheduler {
             Player player = Bukkit.getPlayer(id);
             if (player != null) dim.set(player, level);
         }
+    }
+
+    private void hidePlain() {
+        for (Map.Entry<UUID, List<BossBar>> viewer : plainViewers.entrySet()) {
+            Player player = Bukkit.getPlayer(viewer.getKey());
+            if (player != null) for (BossBar bar : viewer.getValue()) player.hideBossBar(bar);
+        }
+        plainViewers.clear();
     }
 
     private void repeatActionBar() {

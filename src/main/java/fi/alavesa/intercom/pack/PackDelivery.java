@@ -16,6 +16,7 @@ import org.bukkit.event.player.PlayerResourcePackStatusEvent;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -50,13 +51,17 @@ public final class PackDelivery implements Listener {
     /** Fixed id: clients and the status event identify our pack by it across restarts. */
     public static final UUID PACK_ID = UUID.nameUUIDFromBytes("intercom:pack".getBytes(StandardCharsets.UTF_8));
 
-    /** How often our pack is sent again to stay above a pack that loaded after it, per player and session. */
+    /**
+     * How often our pack is sent again to stay above one other pack that loaded after it, per player and session.
+     * Counted per other pack: with many plugins sending packs one total ran out, and the last pack to load - often
+     * SCP079's - then stayed above ours and the banner was not drawn.
+     */
     private static final int MAX_REPUSHES = 3;
 
     private final IntercomPlugin plugin;
     private final Logger log;
     private final Map<UUID, PlayerResourcePackStatusEvent.Status> status = new HashMap<>();
-    private final Map<UUID, Integer> repushes = new HashMap<>();
+    private final Map<UUID, Map<UUID, Integer>> repushes = new HashMap<>();
     private final Set<UUID> sent = new HashSet<>();
     private final Map<UUID, Set<UUID>> pushedAfterOurs = new HashMap<>();
     /** delivery none: players whose client reported some server pack as loaded. */
@@ -65,6 +70,7 @@ public final class PackDelivery implements Listener {
     private SamePortHttp samePort;
     private Settings.Delivery effective = Settings.Delivery.NONE;
     private String servedSha1 = "";
+    private volatile boolean downloadCheckOk;
 
     public PackDelivery(IntercomPlugin plugin) {
         this.plugin = plugin;
@@ -96,6 +102,7 @@ public final class PackDelivery implements Listener {
             if (problem == null) {
                 samePort = h;
                 effective = Settings.Delivery.SAME_PORT;
+                selfTest(sha1);
             } else {
                 log.warning("Could not serve the pack on the Minecraft port (" + problem + ")"
                     + (cfg.delivery() == Settings.Delivery.AUTO ? "; using the HTTP server on port " + cfg.httpPort() : ""));
@@ -126,6 +133,36 @@ public final class PackDelivery implements Listener {
         }
     }
 
+    /**
+     * Downloads our own pack once through the Minecraft port, the way a client would, and logs the answer. A 404 or
+     * a refused connection here is what players' clients get too (another plugin answering downloads on the port,
+     * or a proxy in front of the server) - the console then says so instead of the banner silently missing.
+     */
+    private void selfTest(String sha1) {
+        // a few seconds after start-up: the other plugins have installed their own handlers by then
+        Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, () -> {
+            String url = "http://127.0.0.1:" + Bukkit.getPort() + "/intercom/" + sha1 + ".zip";
+            try {
+                HttpURLConnection c = (HttpURLConnection) URI.create(url).toURL().openConnection();
+                c.setConnectTimeout(5000);
+                c.setReadTimeout(5000);
+                int code = c.getResponseCode();
+                long length = c.getContentLengthLong();
+                c.disconnect();
+                if (code == 200) {
+                    // the pack is rebuilt whenever a sibling plugin's pack changes: say "OK" once, problems every time
+                    if (!downloadCheckOk) log.info("Pack download check: OK (" + length + " bytes through the Minecraft port)");
+                    downloadCheckOk = true;
+                }
+                else log.warning("Pack download check: " + url + " answered HTTP " + code + ". Players' clients get the same answer, so they"
+                    + " do not load the Intercom pack and see the banner in plain text. Usually another plugin is answering downloads on"
+                    + " the Minecraft port: update it, or set resourcepack.delivery: http (own port) or url.");
+            } catch (IOException e) {
+                log.warning("Pack download check: " + url + " failed (" + e.getMessage() + "). Set resourcepack.delivery: http or url.");
+            }
+        }, 100L);
+    }
+
     public void stop() {
         if (http != null) http.stop();
         http = null;
@@ -143,9 +180,8 @@ public final class PackDelivery implements Listener {
     }
 
     /**
-     * Is the banner sent to players? True whenever the pack carries the banner shader - whether or not a
-     * particular client has loaded the pack. A player without it sees placeholder boxes at the top of the
-     * screen instead of the drawn banner; that is wanted (no separate vanilla version of the UI).
+     * Can the drawn banner be shown? True whenever the pack carries the banner shader. Players whose client has not
+     * loaded the pack get the plain version ({@code PlainBanner}) instead, either way.
      */
     public boolean bannerReady() {
         return plugin.bannerShaderShipped();
@@ -192,6 +228,8 @@ public final class PackDelivery implements Listener {
                 log.warning(player.getName() + " could not load the resource pack (" + st + ") from " + uri(player)
                     + ". They see the banner and the dialog without their textures. If the address answers 404, another plugin is answering"
                     + " downloads on the Minecraft port; behind a proxy set resourcepack.delivery: http or url.");
+            } else if (st == PlayerResourcePackStatusEvent.Status.DECLINED) {
+                log.info(player.getName() + " declined the Intercom resource pack - they get the banner in Minecraft's own font");
             }
             return;
         }
@@ -203,7 +241,9 @@ public final class PackDelivery implements Listener {
         if (st == PlayerResourcePackStatusEvent.Status.ACCEPTED) {
             newer.add(event.getID());
         } else if (st == PlayerResourcePackStatusEvent.Status.SUCCESSFULLY_LOADED && newer.remove(event.getID())) {
-            if (repushes.merge(id, 1, Integer::sum) <= MAX_REPUSHES) Bukkit.getScheduler().runTaskLater(plugin, () -> send(player), 20L);
+            if (repushes.computeIfAbsent(id, k -> new HashMap<>()).merge(event.getID(), 1, Integer::sum) <= MAX_REPUSHES) {
+                Bukkit.getScheduler().runTaskLater(plugin, () -> send(player), 20L);
+            }
         }
     }
 
