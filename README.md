@@ -8,6 +8,15 @@ and a subtle screen dim, then slides back up.
 - Resource pack: built by the plugin at start-up and sent to players automatically. A stand-alone copy comes
   from `./gradlew packZip`.
 
+## Changes in 1.2.1
+
+- **No fallback.** Every player gets the banner and nothing else: `fallback.mode` is now `none` by default,
+  and a config that still has 1.1/1.2's `chat` is switched to `none` once on start-up (`config-version: 3`
+  marks this as done; the rest of the file is kept). Set `chat`, `actionbar` or `both` again if you want it.
+  Players whose client did not load the pack see placeholder boxes at the top of the screen and hear a
+  vanilla chime. Only when the pack could not be built at all (no banner for anyone) the announcement goes
+  to chat.
+
 ## Changes in 1.2.0
 
 - **The banner and the textured dialog are sent to every player, with or without the resource pack.**
@@ -115,7 +124,7 @@ when the dialog opens **and** when it is submitted; the denial text is `no-permi
 - `timing.*`: slide and hold times, and the animation `driver` (below).
 - `banner.*`, `post-effect.*`: look. These are **baked into the pack**; `/announce reload` rebuilds it and players
   download it again.
-- `fallback.mode`: what players without the pack get besides the banner (`chat`, `actionbar`, `both`, `none`).
+- `fallback.mode`: what players without the pack get besides the banner (`none` = default, `chat`, `actionbar`, `both`).
 - `microphone.*`: on/off, size, view range.
 - `resourcepack.*`: delivery.
 
@@ -153,7 +162,7 @@ counts as having it once their client reports any server pack as loaded.
 
 **Who gets the banner.** Everyone. The plugin still listens to `PlayerResourcePackStatusEvent`, but only to know
 who cannot draw it: a player whose client did not report the pack as loaded gets the banner's boss bar anyway
-(placeholder boxes at the top of the screen), plus the fallback and a vanilla chime.
+(placeholder boxes at the top of the screen) and a vanilla chime, plus `fallback.mode` if you set one.
 
 ## How it works
 

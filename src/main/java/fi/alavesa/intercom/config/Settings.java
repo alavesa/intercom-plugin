@@ -22,7 +22,9 @@ public record Settings(Announcement announcement, Timing timing, Banner banner, 
     /** Four double-size lines plus the sender line are the tallest banner the marker can describe (see BannerText). */
     public static final int MAX_LINES = 4;
     /** config.yml of an older layout is set aside and written anew (see IntercomPlugin). */
-    public static final int CONFIG_VERSION = 2;
+    public static final int CONFIG_LAYOUT = 2;
+    /** Current config-version; versions from CONFIG_LAYOUT up are updated in place (see IntercomPlugin). */
+    public static final int CONFIG_VERSION = 3;
     /** The client-clock driver compares time modulo 64 ticks and treats 48+ as "not started" (shader). */
     public static final int MAX_SLIDE_TICKS = 40;
 
@@ -111,7 +113,7 @@ public record Settings(Announcement announcement, Timing timing, Banner banner, 
         Sounds sounds = new Sounds(sound(c, "sounds.open", log), sound(c, "sounds.close", log), sound(c, "sounds.confirm", log),
             sound(c, "sounds.fallback-open", log));
 
-        FallbackMode fallback = enumOf(FallbackMode.class, c.getString("fallback.mode", "chat"), FallbackMode.CHAT, "fallback.mode", log);
+        FallbackMode fallback = enumOf(FallbackMode.class, c.getString("fallback.mode", "none"), FallbackMode.NONE, "fallback.mode", log);
 
         DialogUi dialog = new DialogUi(
             c.getBoolean("dialog.fancy", true),

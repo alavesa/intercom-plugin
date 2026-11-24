@@ -139,7 +139,7 @@ public final class IntercomPlugin extends JavaPlugin implements Listener {
     private void loadFiles() {
         saveDefaultConfig();
         reloadConfig();
-        if (getConfig().getInt("config-version", 1) < Settings.CONFIG_VERSION) {
+        if (getConfig().getInt("config-version", 1) < Settings.CONFIG_LAYOUT) {
             // An older config.yml has other keys and other defaults (cooldown, sender line, colours). Mixing the two
             // silently would keep the old behaviour, so the old file is set aside and the new one written.
             File config = new File(getDataFolder(), "config.yml");
@@ -152,6 +152,20 @@ public final class IntercomPlugin extends JavaPlugin implements Listener {
                     + " defaults was written. Copy over any settings you had changed.");
             } catch (IOException e) {
                 getLogger().warning("config.yml is from an older version and could not be replaced (" + e.getMessage() + ") - new settings use their defaults");
+            }
+        }
+        if (getConfig().getInt("config-version", 1) < Settings.CONFIG_VERSION) {
+            // 1.1/1.2 wrote fallback.mode: chat into every config; the server asked for no fallback at all, so that
+            // value is switched to none once (config-version 3 marks it done; a later "chat" stays)
+            if ("chat".equalsIgnoreCase(getConfig().getString("fallback.mode", ""))) {
+                getConfig().set("fallback.mode", "none");
+                getLogger().info("config.yml: fallback.mode chat -> none (banner only, no chat copy)");
+            }
+            getConfig().set("config-version", Settings.CONFIG_VERSION);
+            try {
+                getConfig().save(new File(getDataFolder(), "config.yml"));
+            } catch (IOException e) {
+                getLogger().warning("config.yml could not be saved (" + e.getMessage() + ") - the change applies until the next restart only");
             }
         }
         settings = Settings.read(getConfig(), getLogger());

@@ -102,7 +102,8 @@ public final class BannerScheduler {
                 }
                 if (!banner) play(player, fallbackOpen);
             }
-            if (chat != null && (settings.announcement().chatCopy() || (!readable && settings.fallback().chat()))) player.sendMessage(chat);
+            // no banner at all (the pack could not be built): chat is the only way the announcement is heard
+            if (chat != null && (settings.announcement().chatCopy() || !banner || (!readable && settings.fallback().chat()))) player.sendMessage(chat);
         }
         if (task == null) task = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 1L, 1L);
     }

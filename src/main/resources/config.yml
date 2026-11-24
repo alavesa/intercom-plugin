@@ -1,6 +1,6 @@
 # Intercom - announcement banner. Reload with /announce reload.
 # Do not change this number: it tells the plugin which layout this file has.
-config-version: 2
+config-version: 3
 # Settings marked [pack] are baked into the resource pack: changing them rebuilds the pack on reload and
 # players download it again.
 
@@ -97,9 +97,9 @@ sounds:
 fallback:
   # The banner and the dialog are sent to EVERY player, also those whose client did not load the resource
   # pack. Without the pack's font and shader the banner is drawn as placeholder boxes at the top of the
-  # screen, so those players ALSO get the announcement this way: chat, actionbar, both or none.
-  # (Other plugins that own the action bar will overwrite an action bar message.)
-  mode: chat
+  # screen. none (default) = the banner only. chat, actionbar or both = those players ALSO get the
+  # announcement that way. (Other plugins that own the action bar will overwrite an action bar message.)
+  mode: none
 
 dialog:
   # Custom-textured dialog (panel behind the text box, textured Send / Cancel buttons), shown to everyone.
