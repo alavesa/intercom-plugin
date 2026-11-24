@@ -10,16 +10,19 @@ import fi.alavesa.intercom.IntercomPlugin;
 import fi.alavesa.intercom.announce.AnnouncementManager;
 import fi.alavesa.intercom.announce.Feedback;
 import fi.alavesa.intercom.config.Messages;
+import fi.alavesa.intercom.pack.PackBuilder;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
@@ -54,6 +57,7 @@ public final class AnnounceCommand {
             .then(Commands.literal("reload").requires(AnnounceCommand::admin).executes(this::reload))
             .then(Commands.literal("clear").requires(AnnounceCommand::admin).executes(this::clear))
             .then(Commands.literal("status").requires(AnnounceCommand::admin).executes(this::status))
+            .then(Commands.literal("pack").executes(this::pack))
             .then(Commands.literal("test").requires(AnnounceCommand::admin)
                 .then(Commands.argument("text", StringArgumentType.greedyString()).executes(this::test)))
             .then(Commands.literal("microphone").requires(this::builder).executes(this::microphone)
@@ -148,6 +152,20 @@ public final class AnnounceCommand {
     }
 
     /** Technical read-out for whoever runs the server: not in messages.yml on purpose. */
+    /** A download link for the pack, for players whose client did not take it from the server: they add it by hand. */
+    private int pack(CommandContext<CommandSourceStack> context) {
+        CommandSender sender = context.getSource().getSender();
+        URI uri = sender instanceof Player player ? plugin.delivery().uri(player) : null;
+        if (uri == null) {
+            // console, or no download address: the file itself can be handed out
+            plugin.messages().send(sender, "pack.file", Messages.text("path", "plugins/Intercom/" + PackBuilder.ZIP_NAME));
+            return Command.SINGLE_SUCCESS;
+        }
+        Component link = Component.text(uri.toString()).clickEvent(ClickEvent.openUrl(uri.toString()));
+        plugin.messages().send(sender, "pack.link", Messages.tag("link", link));
+        return Command.SINGLE_SUCCESS;
+    }
+
     private int status(CommandContext<CommandSourceStack> context) {
         CommandSender sender = context.getSource().getSender();
         int online = Bukkit.getOnlinePlayers().size(), ready = 0;

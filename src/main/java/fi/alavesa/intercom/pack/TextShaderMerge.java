@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -62,12 +63,12 @@ public final class TextShaderMerge {
             if (source != null) { base = source; break; }
         }
         try {
-            if (base.vertex.contains("intercom_text_vertex") || base.fragment.contains("intercom_text_fragment")) {
-                throw new IllegalStateException("it already carries the Intercom lines");
-            }
-            String vertex = insertAfter(base.vertex, V_INCLUDE_AFTER, "// ===== INTERCOM BEGIN =====\n#include <intercom:intercom_text_vertex.glsl>\n// ===== INTERCOM END =====\n");
+            // SCP079 1.3+ copies the Intercom lines into its own shader (so its pack draws the banner too when it is
+            // the top pack). Our lines are then taken out and put back fresh: the result is the same either way, and
+            // the two plugins' packs settle instead of rebuilding each other.
+            String vertex = insertAfter(withoutOurs(base.vertex), V_INCLUDE_AFTER, "// ===== INTERCOM BEGIN =====\n#include <intercom:intercom_text_vertex.glsl>\n// ===== INTERCOM END =====\n");
             vertex = insertAfter(vertex, V_CALL_AFTER, "    // ===== INTERCOM BEGIN =====\n    intercom_text_vertex(Color);\n    // ===== INTERCOM END =====\n");
-            String fragment = insertAfter(base.fragment, F_INCLUDE_AFTER, "// ===== INTERCOM BEGIN =====\n#include <intercom:intercom_text_fragment.glsl>\n// ===== INTERCOM END =====\n");
+            String fragment = insertAfter(withoutOurs(base.fragment), F_INCLUDE_AFTER, "// ===== INTERCOM BEGIN =====\n#include <intercom:intercom_text_fragment.glsl>\n// ===== INTERCOM END =====\n");
             fragment = insertAfter(fragment, F_CALL_AFTER, "    // ===== INTERCOM BEGIN =====\n    color = intercom_text_fragment(color, texColor, vertexColor, ColorModulator);\n    // ===== INTERCOM END =====\n");
             Map<String, byte[]> files = new LinkedHashMap<>(base.includes);
             files.put(CORE + "vsh", vertex.getBytes(StandardCharsets.UTF_8));
@@ -78,6 +79,12 @@ public final class TextShaderMerge {
                 + "). Announcements use the fallback (chat / action bar) for everyone until Intercom is updated for it.");
             return new Result(Map.of(), "none (merge with " + base.name + " refused)");
         }
+    }
+
+    private static final Pattern OURS = Pattern.compile("(?m)^[ \\t]*// ===== INTERCOM BEGIN =====\\n[\\s\\S]*?^[ \\t]*// ===== INTERCOM END =====\\n");
+
+    static String withoutOurs(String shader) {
+        return OURS.matcher(shader).replaceAll("");
     }
 
     private static String insertAfter(String s, String anchor, String add) {

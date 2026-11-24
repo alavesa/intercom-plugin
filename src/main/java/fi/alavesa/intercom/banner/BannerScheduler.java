@@ -24,10 +24,10 @@ import java.util.UUID;
  * Plays ONE announcement to everybody online: slide in, hold, slide out, a short gap, then {@code onDone}.
  * <p>
  * The banner is a boss bar: its name is the whole banner ({@link BannerText}), the pack's text shader moves
- * it into place and animates it, and the pack blanks the blue bar graphic. A client that has not loaded the
- * pack would draw that name as placeholder boxes, so those players - and everyone when the pack carries no
- * banner shader - get {@link PlainBanner}: the same words as plain boss bars in Minecraft's own font. The
- * optional fallback.mode (chat / action bar) comes on top of that.
+ * it into place and animates it, and the pack blanks the blue bar graphic. It is sent to EVERY player: one who
+ * has not loaded the pack (not even by hand) sees placeholder boxes and should install it (/announce pack). Only
+ * when this server's pack carries no banner shader at all - nobody could draw it - is {@link PlainBanner} used.
+ * The optional fallback.mode (chat / action bar) goes to players the server has not seen load the pack.
  * <p>
  * Why a boss bar and not the action bar or a title: it is the only HUD text channel that several plugins can
  * use at once without overwriting each other (each bar is its own object), it stays exactly as long as the
@@ -90,16 +90,17 @@ public final class BannerScheduler {
         boolean banner = plugin.delivery().bannerReady();
         List<Component> plainRows = PlainBanner.rows(announcement.lines(), announcement.senderLine());
         for (Player player : Bukkit.getOnlinePlayers()) {
-            // unreadable without the pack's font: these players get the plain bars instead
-            boolean readable = banner && plugin.delivery().packLoaded(player);
-            if (readable) {
+            // Everyone gets the drawn banner, whatever the server knows about their pack: a player may have installed
+            // it by hand (the server never hears about that), and the team wants no second, plain version.
+            if (banner) {
                 // BLUE: the bar graphic the pack blanks (no vanilla mob has a blue bar). Progress 0: nothing to fill.
                 BossBar bar = BossBar.bossBar(name(player, BannerText.PHASE_ENTER, 0), 0f, BossBar.Color.BLUE, BossBar.Overlay.PROGRESS);
                 viewers.put(player.getUniqueId(), bar);
                 player.showBossBar(bar);
                 play(player, open);
             } else {
-                // WHITE + empty: the least loud bar graphic under each line (a client without the pack draws it)
+                // no banner shader in this server's pack: nobody can draw the banner, so everyone gets the plain bars.
+                // WHITE + empty: the least loud bar graphic under each line
                 List<BossBar> bars = new ArrayList<>();
                 for (Component row : plainRows) {
                     BossBar bar = BossBar.bossBar(row, 0f, BossBar.Color.WHITE, BossBar.Overlay.PROGRESS);
@@ -114,7 +115,12 @@ public final class BannerScheduler {
                     player.sendActionBar(actionBar);
                 }
             }
-            if (chat != null && (settings.announcement().chatCopy() || (!readable && settings.fallback().chat()))) player.sendMessage(chat);
+            boolean packSeen = plugin.delivery().packLoaded(player);
+            if (banner && !packSeen && settings.fallback().actionBar() && actionBar != null) {
+                actionBarViewers.add(player.getUniqueId());
+                player.sendActionBar(actionBar);
+            }
+            if (chat != null && (settings.announcement().chatCopy() || (!packSeen && settings.fallback().chat()))) player.sendMessage(chat);
         }
         if (task == null) task = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 1L, 1L);
     }

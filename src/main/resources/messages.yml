@@ -19,6 +19,11 @@ queue-full: "<prefix><red>Too many announcements are waiting. Try again in a mom
 reloaded: "<prefix><green>Reloaded. <gray>Pack <sha1>, text shader: <shader>."
 cleared: "<prefix><green>Stopped the current announcement and removed <count> queued."
 
+# /announce pack: for players who add the Intercom resource pack by hand (Options > Resource Packs).
+pack:
+  link: "<prefix><gray>Intercom resource pack: <aqua><u><link></u></aqua> <dark_gray>(click, then put it in your resourcepacks folder and move it to the top)"
+  file: "<prefix><gray>The Intercom resource pack is the file <white><path></white>; hand it to players who add it by hand."
+
 microphone:
   item-name: "<gold>Intercom Microphone"
   no-build: "<prefix><red>Only server operators can place or remove microphones."

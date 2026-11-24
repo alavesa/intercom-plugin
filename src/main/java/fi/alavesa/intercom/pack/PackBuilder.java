@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.SortedMap;
 
@@ -34,10 +35,14 @@ public final class PackBuilder {
         byte[] bytes = DeterministicZip.write(files, false);
         String sha1 = Hashing.sha1Hex(bytes);
         writeFolder(folder, files);
-        // written under another name first: the HTTP hosts never see a half-written zip
-        Path tmp = zip.resolveSibling(ZIP_NAME + ".tmp");
-        Files.write(tmp, bytes);
-        Files.move(tmp, zip, StandardCopyOption.REPLACE_EXISTING);
+        // Unchanged bytes are not written again: SCP079 rebuilds its pack when this file's time changes, and this
+        // plugin rebuilds when SCP079's does - rewriting identical files kept the two rebuilding each other.
+        if (!Files.isRegularFile(zip) || !Arrays.equals(Files.readAllBytes(zip), bytes)) {
+            // written under another name first: the HTTP hosts never see a half-written zip
+            Path tmp = zip.resolveSibling(ZIP_NAME + ".tmp");
+            Files.write(tmp, bytes);
+            Files.move(tmp, zip, StandardCopyOption.REPLACE_EXISTING);
+        }
         Files.writeString(directory.resolve(ZIP_NAME + ".sha1"), sha1 + "\n", StandardCharsets.UTF_8);
         return new Written(zip, folder, sha1, files.size());
     }

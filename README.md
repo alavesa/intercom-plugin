@@ -8,6 +8,27 @@ and a subtle screen dim, then slides back up.
 - Resource pack: built by the plugin at start-up and sent to players automatically. A stand-alone copy comes
   from `./gradlew packZip`.
 
+## Changes in 1.2.3
+
+- **The drawn banner for everyone.** No plain version any more: every player gets the real banner (box,
+  slide, large text) and the pack's chime, whatever the server knows about their pack. A player who adds
+  the pack by hand - which the server never hears about - sees it too. Without the pack at all it shows as
+  boxes; such players should install the pack (below). The plain bars of 1.2.2 are only used when this
+  server's pack has no banner shader at all (nobody could draw it). The compose dialog is the textured one
+  for everyone as well.
+- **Installing the pack by hand.** `/announce pack` (every player) gives a clickable download link; from
+  the console it names the file (`plugins/Intercom/Intercom-pack.zip`) to hand out. Put the zip into
+  `.minecraft/resourcepacks` and turn it on in Options > Resource Packs.
+  A pack added by hand sits BELOW all the server's packs, and only the top pack's text shader runs. So
+  SCP079 1.3.0 now builds its shader on top of Intercom's: when SCP079's server pack is the top one, it
+  draws the banner as well (with the font from the hand-installed Intercom pack). Seen on a real client:
+  Intercom pack added by hand, Intercom's server delivery off, SCP079's pack on top - the banner was drawn.
+- **No rebuild loop with SCP079.** Each plugin builds its text shader on the other's and rebuilt when the
+  other's zip file changed (by size and time). Both now leave an unchanged zip untouched, and take their
+  own lines out of the other's shader before adding them fresh, so they settle after one round.
+- **Messages added by an update now show** on servers whose messages.yml is from an older version (the
+  bundled texts were never used as defaults - for example the 1.1.0 microphone messages).
+
 ## Changes in 1.2.2
 
 - **Readable banner without the pack.** A player whose client has not loaded the Intercom pack (declined it,
